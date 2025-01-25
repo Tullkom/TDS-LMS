@@ -1,6 +1,7 @@
 import pygame
 import sys
 import os.path
+import math
 
 
 def load_image(name):
@@ -59,12 +60,37 @@ class Enemy(pygame.sprite.Sprite):
         self.rect.y = 720 - self.rect.height
 
 
+class Bullet(pygame.sprite.Sprite):
+    image = load_image('bullet.png')
+
+    def __init__(self, start_pos, target_pos, *group):
+        super().__init__(*group)
+        self.image = Bullet.image
+        self.rect = self.image.get_rect(center=start_pos)
+        self.speed = 5
+
+        direction_x = target_pos[0] - start_pos[0]
+        direction_y = target_pos[1] - start_pos[1]
+        distance = math.hypot(direction_x, direction_y)
+        self.velocity_x = direction_x / distance * self.speed
+        self.velocity_y = direction_y / distance * self.speed
+
+    def update(self):
+        self.rect.x += self.velocity_x
+        self.rect.y += self.velocity_y
+
+        if self.rect.bottom < 0 or self.rect.top > 720 or self.rect.right < 0 or self.rect.left > 1280:
+            self.kill()
+
+
 if __name__ == '__main__':
+    pygame.init()
     screen = pygame.display.set_mode((1280, 720))
     pygame.display.set_caption("TDS")
     running = True
 
     all_sprites = pygame.sprite.Group()
+    bullets = pygame.sprite.Group()
     player = Player(all_sprites)
     enemy = Enemy(all_sprites)
 
@@ -75,6 +101,10 @@ if __name__ == '__main__':
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    mouse_pos = pygame.mouse.get_pos()
+                    bullet = Bullet(player.rect.center, mouse_pos, all_sprites)
 
         all_sprites.update()
         all_sprites.draw(screen)
