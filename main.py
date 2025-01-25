@@ -25,7 +25,6 @@ class Player(pygame.sprite.Sprite):
     def keyboard_input(self):
         self.velocity_x = 0
         self.velocity_y = 0
-
         keys = pygame.key.get_pressed()
 
         if keys[pygame.K_w]:
@@ -37,7 +36,7 @@ class Player(pygame.sprite.Sprite):
         if keys[pygame.K_a]:
             self.velocity_x = -self.speed
 
-        if self.velocity_x != 0 and self.velocity_y != 0: # moving diagonally
+        if self.velocity_x != 0 and self.velocity_y != 0:
             self.velocity_x /= 2 ** 0.5
             self.velocity_y /= 2 ** 0.5
 
@@ -49,21 +48,36 @@ class Player(pygame.sprite.Sprite):
         self.move()
 
 
+class Enemy(pygame.sprite.Sprite):
+    image = load_image('enemy.png')
+
+    def __init__(self, *group):
+        super().__init__(*group)
+        self.image = Enemy.image
+        self.rect = self.image.get_rect()
+        self.rect.x = 1280 - self.rect.width
+        self.rect.y = 720 - self.rect.height
+
+
 if __name__ == '__main__':
     screen = pygame.display.set_mode((1280, 720))
     pygame.display.set_caption("TDS")
     running = True
+
     all_sprites = pygame.sprite.Group()
     player = Player(all_sprites)
+    enemy = Enemy(all_sprites)
+
     clock = pygame.time.Clock()
+
     while running:
         screen.fill('black')
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            all_sprites.update()
-        screen.blit(player.image, player.rect)
-        player.update()
+
+        all_sprites.update()
+        all_sprites.draw(screen)
 
         pygame.display.update()
         clock.tick(60)
