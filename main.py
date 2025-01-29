@@ -24,7 +24,11 @@ class Player(pygame.sprite.Sprite):
         super().__init__(*group)
         self.image = Player.image
         self.rect = self.image.get_rect()
+        self.rect.x = SCREENSIZE[0] // 2 - self.rect.width // 2
+        self.rect.y = SCREENSIZE[1] // 2 - self.rect.height // 2
         self.speed = 5
+        self.max_hp = 100
+        self.hp = self.max_hp
 
     def keyboard_input(self):
         self.velocity_x = 0
@@ -50,6 +54,20 @@ class Player(pygame.sprite.Sprite):
     def update(self):
         self.keyboard_input()
         self.move()
+        self.draw_hp_bar(screen)
+
+    def take_damage(self, amount):
+        self.hp -= amount
+        if self.hp <= 0:
+            self.kill()
+
+    def draw_hp_bar(self, surface):
+        hp_bar_length = 50
+        hp_ratio = self.hp / self.max_hp
+        hp_rect = pygame.Rect(self.rect.x + self.image.get_rect().width // 2 - 25, self.rect.y - 10, hp_bar_length, 5)
+        pygame.draw.rect(surface, (255, 0, 0), hp_rect)
+        hp_rect[2] *= hp_ratio
+        pygame.draw.rect(surface, (0, 255, 0), hp_rect)
 
 
 class Enemy(pygame.sprite.Sprite):
@@ -59,10 +77,10 @@ class Enemy(pygame.sprite.Sprite):
         super().__init__(*group)
         self.image = Enemy.image
         self.rect = self.image.get_rect()
-        self.rect.x = SCREENSIZE[0] - self.rect.width
-        self.rect.y = SCREENSIZE[1] - self.rect.height
+        self.rect.x, self.rect.y = [random.randint(0, SCREENSIZE[j]) for j in range(2)]
         self.max_hp = 100
         self.hp = self.max_hp
+        self.pos = pygame.math.Vector2(self.rect.center)
 
     def update(self):
         self.draw_hp_bar(screen)
@@ -82,8 +100,6 @@ class LineEnemy(Enemy):
         super().__init__(*group)
         self.max_hp = 150
         self.hp = self.max_hp
-        self.rect.x, self.rect.y = [random.randint(0, SCREENSIZE[j]) for j in range(2)]
-        self.pos = pygame.math.Vector2(self.rect.center)
         self.speed = 1
         self.move = (pygame.math.Vector2(player.rect.center) - self.rect.center).normalize() * self.speed
 
@@ -95,6 +111,22 @@ class LineEnemy(Enemy):
         if (self.rect.bottom < 0 or self.rect.top > SCREENSIZE[1] or
                 self.rect.right < 0 or self.rect.left > SCREENSIZE[0]):
             self.kill()
+
+
+class DirectedEnemy(Enemy):
+    def __init__(self, *group):
+        super().__init__(*group)
+        self.max_hp = 150
+        self.hp = self.max_hp
+        self.speed = 1
+
+    def update(self):
+        super().update()
+        move = pygame.math.Vector2(player.rect.center) - self.rect.center
+        if move:
+            move = move.normalize() * self.speed
+        self.pos += move
+        self.rect.center = round(self.pos.x), round(self.pos.y)
 
 
 class Bullet(pygame.sprite.Sprite):
@@ -132,7 +164,7 @@ if __name__ == '__main__':
 
     clock = pygame.time.Clock()
     for i in range(5):
-        enemy = LineEnemy(all_sprites, enemies)
+        enemy = DirectedEnemy(all_sprites, enemies)
 
     while running:
         screen.fill('black')
@@ -144,7 +176,10 @@ if __name__ == '__main__':
                     mouse_pos = pygame.mouse.get_pos()
                     bullet = Bullet(player.rect.center, mouse_pos, all_sprites, bullets)
 
-        all_sprites.update()
+        for enemy in enemies:
+            distance = pygame.math.Vector2(enemy.rect.center).distance_to(pygame.math.Vector2(player.rect.center))
+            if distance < 30:
+                player.take_damage(1)
 
         for bullet in bullets:
             hit_enemies = pygame.sprite.spritecollide(bullet, enemies, False)
@@ -154,8 +189,9 @@ if __name__ == '__main__':
                 if enemy.hp <= 0:
                     enemy.kill()
 
-        all_sprites.draw(screen)
+        all_sprites.update()
         enemies.update()
+        all_sprites.draw(screen)
 
         pygame.display.update()
         clock.tick(60)
