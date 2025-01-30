@@ -28,7 +28,7 @@ def money_draw(money):
 def score_draw(score):
     font = pygame.font.Font(None, 50)
     text = font.render('Score: ' + str(score), True, (255, 255, 255))
-    screen.blit(text, (SCREENSIZE[0] - 160, 10))
+    screen.blit(text, (SCREENSIZE[0] - 10 - text.get_rect().width, 10))
 
 
 class Player(pygame.sprite.Sprite):
@@ -45,6 +45,7 @@ class Player(pygame.sprite.Sprite):
         self.hp = self.max_hp
         self.cooldown = 20
         self.cd = self.cooldown
+        self.multi = 0
 
     def keyboard_input(self):
         self.velocity_x = 0
@@ -67,7 +68,13 @@ class Player(pygame.sprite.Sprite):
         if pygame.mouse.get_pressed() == (1, 0, 0):
             if not self.cd:
                 mouse_pos = pygame.mouse.get_pos()
-                bullet = Bullet(self.rect.center, mouse_pos, all_sprites, bullets)
+                bullet = Bullet(self.rect.center, mouse_pos, 0,  all_sprites, bullets)
+                if self.multi >= 1:
+                    bullet = Bullet(self.rect.center, mouse_pos, 15, all_sprites, bullets)
+                    bullet = Bullet(self.rect.center, mouse_pos, -15, all_sprites, bullets)
+                if self.multi > 1:
+                    bullet = Bullet(self.rect.center, mouse_pos, 30, all_sprites, bullets)
+                    bullet = Bullet(self.rect.center, mouse_pos, -30, all_sprites, bullets)
                 self.cd = self.cooldown
 
     def move(self):
@@ -99,7 +106,7 @@ class Enemy(pygame.sprite.Sprite):
         super().__init__(*group)
         self.image = load_image('enemy.png')
         self.rect = self.image.get_rect()
-        self.rect.x, self.rect.y = [random.randint(0, SCREENSIZE[j]) for j in range(2)]
+        self.rect.x, self.rect.y = [random.randint(50, SCREENSIZE[j] - 50) for j in range(2)]
         self.max_hp = 100
         self.hp = self.max_hp
         self.pos = pygame.math.Vector2(self.rect.center)
@@ -126,7 +133,8 @@ class StillEnemy(Enemy):
         self.max_hp = 200 * (1 + difficulty / 2)
         self.hp = self.max_hp
         self.cost = 20
-        self.dmg = 2
+        self.points = 2
+        self.dmg = 2 * (1 + difficulty)
         self.image = pygame.transform.rotate(self.image, random.randint(0, 360))
 
     def update(self):
@@ -141,8 +149,8 @@ class LineEnemy(Enemy):
         self.speed = 3 * (1 + difficulty / 5)
         self.move = (pygame.math.Vector2(player.rect.center) - self.rect.center).normalize() * self.speed
         self.cost = 30
-        self.go = False
         self.points = 3
+        self.go = False
 
     def update(self):
         super().update()
@@ -157,9 +165,12 @@ class LineEnemy(Enemy):
 class DirectedEnemy(Enemy):
     def __init__(self, *group):
         super().__init__(*group)
-        self.rect.x, self.rect.y = [random.choice([random.randint(-100, 0),
-                                                   random.randint(SCREENSIZE[j], SCREENSIZE[j] + 100)])
-                                    for j in range(2)]
+        self.rect.x, self.rect.y = random.choice([
+            (random.randint(-100, 0), random.randint(-100, SCREENSIZE[1] + 100)),
+            (random.randint(SCREENSIZE[0], SCREENSIZE[0] + 100), random.randint(-100, SCREENSIZE[1] + 100)),
+            (random.randint(-100, SCREENSIZE[0] + 100), random.randint(-100, 0)),
+            (random.randint(-100, SCREENSIZE[0] + 100), random.randint(SCREENSIZE[1], SCREENSIZE[1] + 100))
+        ])
         self.pos = pygame.math.Vector2(self.rect.center)
         self.max_hp = 100 * (1 + difficulty / 3)
         self.hp = self.max_hp
@@ -175,18 +186,38 @@ class DirectedEnemy(Enemy):
             self.rect.center = round(self.pos.x), round(self.pos.y)
 
 
+class FatEnemy(DirectedEnemy):
+    def __init__(self, *group):
+        super().__init__(*group)
+        self.image = load_image('fat_enemy.png')
+        self.max_hp = 200 * (1 + difficulty / 2)
+        self.hp = self.max_hp
+        self.speed = 0.2 * (1 + difficulty / 8)
+        self.cost = 30
+        self.points = 5
+        self.dmg = 2 * (1 + difficulty)
+
+    def update(self):
+        super().update()
+        move = pygame.math.Vector2(player.rect.center) - self.rect.center
+        if move:
+            move = move.normalize() * self.speed
+            self.pos += move
+            self.rect.center = round(self.pos.x), round(self.pos.y)
+
+
 class Bullet(pygame.sprite.Sprite):
     image = load_image('bullet.png')
     damage = 50
 
-    def __init__(self, start_pos, target_pos, *group):
+    def __init__(self, start_pos, target_pos, rot, *group):
         super().__init__(*group)
         self.rect = self.image.get_rect(center=start_pos)
         angle = math.degrees(math.atan2(target_pos[0] - self.rect.center[0], target_pos[1] - self.rect.center[1]))
         self.image = pygame.transform.rotate(Bullet.image, int(angle))
         self.pos = pygame.math.Vector2(self.rect.center)
         self.speed = 5
-        self.move = (pygame.math.Vector2(target_pos) - start_pos).normalize() * self.speed
+        self.move = (pygame.math.Vector2(target_pos) - start_pos).rotate(rot).normalize() * self.speed
 
     def update(self):
         self.pos += self.move
@@ -200,30 +231,67 @@ class Bullet(pygame.sprite.Sprite):
 class Store:
     def __init__(self, player):
         self.player = player
+
         self.base_health_price = 50
         self.health_price_multiplier = 1.5
         self.current_health_price = self.base_health_price
+        self.health_upgrade_amount = 50
+
         self.base_bullet_damage_price = 50
         self.bullet_damage_price_multiplier = 1.5
         self.current_bullet_damage_price = self.base_bullet_damage_price
-        self.health_upgrade_amount = 50
-        self.bullet_damage_upgrade_amount = 10
+        self.bullet_damage_upgrade_amount = 20
+
+        self.base_speed_price = 25
+        self.speed_price_multiplier = 1.5
+        self.current_speed_price = self.base_speed_price
+        self.speed_upgrade_amount = 0.5
+
+        self.base_reload_price = 50
+        self.reload_price_multiplier = 1.5
+        self.current_reload_price = self.base_reload_price
+        self.reload_upgrade_amount = 1
+
+        self.base_multi_price = 350
+        self.multi_price_multiplier = 3
+        self.current_multi_price = self.base_multi_price
+        self.multi_upgrade_amount = 1
 
     def open_store(self):
         global money
         while True:
             screen.fill((0, 0, 0))
+            money_draw(money)
             font = pygame.font.Font(None, 50)
             text = font.render("Store", True, (255, 255, 255))
             screen.blit(text, (SCREENSIZE[0] // 2 - text.get_rect().width // 2, 50))
 
             buy_health_text = font.render(f"Buy Health ({self.current_health_price} $)", True, (255, 255, 255))
-            screen.blit(buy_health_text, (SCREENSIZE[0] // 2 - buy_health_text.get_rect().width // 2, 150))
+            screen.blit(buy_health_text, (SCREENSIZE[0] // 2 - buy_health_text.get_rect().width // 2, 100))
 
             buy_bullet_damage_text = font.render(f"Buy Bullet Damage ({self.current_bullet_damage_price} $)", True,
                                                  (255, 255, 255))
             screen.blit(buy_bullet_damage_text,
-                        (SCREENSIZE[0] // 2 - buy_bullet_damage_text.get_rect().width // 2, 250))
+                        (SCREENSIZE[0] // 2 - buy_bullet_damage_text.get_rect().width // 2, 150))
+
+            buy_speed_text = font.render(f"Buy Speed ({self.current_speed_price} $)", True,
+                                                 (255, 255, 255))
+            screen.blit(buy_speed_text,
+                        (SCREENSIZE[0] // 2 - buy_speed_text.get_rect().width // 2, 200))
+
+            buy_reload_text = font.render(f"Buy Reload ({self.current_reload_price} $)", True,
+                                         (255, 255, 255))
+            screen.blit(buy_reload_text,
+                        (SCREENSIZE[0] // 2 - buy_reload_text.get_rect().width // 2, 250))
+
+            if player.multi != 2:
+                buy_multi_text = font.render(f"Buy Multishot ({self.current_multi_price} $)", True,
+                                              (255, 255, 255))
+            else:
+                buy_multi_text = font.render(f"Multishot Max lvl", True,
+                                              (255, 255, 255))
+            screen.blit(buy_multi_text,
+                        (SCREENSIZE[0] // 2 - buy_multi_text.get_rect().width // 2, 300))
 
             back_text = font.render("Back", True, (255, 255, 255))
             screen.blit(back_text, (SCREENSIZE[0] // 2 - back_text.get_rect().width // 2, 450))
@@ -236,20 +304,39 @@ class Store:
                     sys.exit()
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     x, y = pygame.mouse.get_pos()
-                    if 150 <= y <= 200:
-                        if money >= self.current_health_price:
-                            money -= self.current_health_price
-                            self.player.max_hp += self.health_upgrade_amount
-                            self.player.hp = self.player.max_hp
-                            self.current_health_price = int(self.current_health_price * self.health_price_multiplier)
-                    elif 250 <= y <= 300:
-                        if money >= self.current_bullet_damage_price:
-                            money -= self.current_bullet_damage_price
-                            Bullet.damage += self.bullet_damage_upgrade_amount
-                            self.current_bullet_damage_price = int(
-                                self.current_bullet_damage_price * self.bullet_damage_price_multiplier)
-                    elif 450 <= y <= 500:
-                        return
+                    if 360 <= x <= 920:
+                        if 95 <= y <= 135:
+                            if money >= self.current_health_price:
+                                money -= self.current_health_price
+                                self.player.max_hp += self.health_upgrade_amount
+                                self.player.hp = self.player.max_hp
+                                self.current_health_price = int(self.current_health_price * self.health_price_multiplier)
+                        elif 145 <= y <= 185:
+                            if money >= self.current_bullet_damage_price:
+                                money -= self.current_bullet_damage_price
+                                Bullet.damage += self.bullet_damage_upgrade_amount
+                                self.current_bullet_damage_price = int(
+                                    self.current_bullet_damage_price * self.bullet_damage_price_multiplier)
+                        elif 195 <= y <= 235:
+                            if money >= self.current_speed_price:
+                                money -= self.current_speed_price
+                                player.speed += self.speed_upgrade_amount
+                                self.current_speed_price = int(
+                                    self.current_speed_price * self.speed_price_multiplier)
+                        elif 245 <= y <= 285:
+                            if money >= self.current_reload_price:
+                                money -= self.current_reload_price
+                                self.player.cooldown -= self.reload_upgrade_amount
+                                self.current_reload_price = int(
+                                    self.current_reload_price * self.reload_price_multiplier)
+                        elif 295 <= y <= 335 and player.multi < 2:
+                            if money >= self.current_multi_price:
+                                money -= self.current_multi_price
+                                self.player.multi += self.multi_upgrade_amount
+                                self.current_multi_price = int(
+                                    self.current_multi_price * self.multi_price_multiplier)
+                        elif 445 <= y <= 500:
+                            return
 
 
 def game_over_screen(score):
@@ -320,6 +407,8 @@ if __name__ == '__main__':
     pygame.time.set_timer(LINEGO, 0)
     STILLSPAWN = pygame.USEREVENT + 5
     pygame.time.set_timer(STILLSPAWN, 15000)
+    FATSPAWN = pygame.USEREVENT + 6
+    pygame.time.set_timer(FATSPAWN, 15000)
 
     store = Store(player)
 
@@ -340,20 +429,23 @@ if __name__ == '__main__':
                 pygame.display.update()
                 pygame.time.delay(1000)
             elif event.type == DIRECTSPAWN:
-                for i in range(3 + difficulty * 2):
+                for i in range(3 + math.floor(difficulty * 1.5)):
                     enemy = DirectedEnemy(all_sprites, enemies)
             elif event.type == LINESPAWN:
                 for i in range(math.floor(1 + difficulty // 2)):
                     enemy = LineEnemy(all_sprites, enemies)
                 pygame.time.set_timer(LINEGO, 500)
-            elif event.type == STILLSPAWN:
-                for i in range(1 + difficulty):
-                    enemy = StillEnemy(all_sprites, enemies)
             elif event.type == LINEGO:
                 for enemy in enemies:
                     if isinstance(enemy, LineEnemy):
                         enemy.go = True
                 pygame.time.set_timer(LINEGO, 0)
+            elif event.type == STILLSPAWN:
+                for i in range(math.floor(1 + difficulty // 2)):
+                    enemy = StillEnemy(all_sprites, enemies)
+            elif difficulty > 2 and event.type == FATSPAWN:
+                for i in range(math.floor(difficulty // 2)):
+                    enemy = FatEnemy(all_sprites, enemies)
 
         for enemy in enemies:
             distance = pygame.math.Vector2(enemy.rect.center).distance_to(pygame.math.Vector2(player.rect.center))
@@ -372,7 +464,7 @@ if __name__ == '__main__':
                 if enemy.hp <= 0:
                     enemy.kill()
                     money += enemy.cost
-                    score += enemy.points
+                    score += math.floor(enemy.points * (1 + difficulty / 2))
 
         if not player.alive():
             if game_over_screen(score):
