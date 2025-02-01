@@ -78,7 +78,18 @@ class Player(pygame.sprite.Sprite):
                 self.cd = self.cooldown
 
     def move(self):
-        self.rect = self.rect.move(self.velocity_x, self.velocity_y)
+        new_rect = self.rect.move(self.velocity_x, self.velocity_y)
+
+        if new_rect.left < 0:
+            new_rect.left = 0
+        if new_rect.right > SCREENSIZE[0]:
+            new_rect.right = SCREENSIZE[0]
+        if new_rect.top < 0:
+            new_rect.top = 0
+        if new_rect.bottom > SCREENSIZE[1]:
+            new_rect.bottom = SCREENSIZE[1]
+
+        self.rect = new_rect
 
     def update(self):
         self.keyboard_input()
