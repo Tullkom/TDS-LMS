@@ -3,12 +3,156 @@ import sys
 import os.path
 import random
 import math
+import sqlite3
+from datetime import datetime
+
+all_sprites = pygame.sprite.Group()
+bullets = pygame.sprite.Group()
+enemies = pygame.sprite.Group()
 
 SCREENSIZE = (1280, 720)
 money = 0
 difficulty = 0
 score = 0
 
+pygame.init()
+screen = pygame.display.set_mode((SCREENSIZE[0], SCREENSIZE[1]))
+pygame.display.set_caption("TDS")
+
+font = pygame.font.Font(None, 50)
+
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+
+def initialize_database():
+    try:
+        conn = sqlite3.connect('game_history.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS game_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT,
+                waves INTEGER,
+                score INTEGER
+            )
+        ''')
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error initializing database: {e}")
+
+def save_game_data(waves, score):
+    conn = sqlite3.connect('game_history.db')
+    cursor = conn.cursor()
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    cursor.execute('INSERT INTO game_history (timestamp, waves, score) VALUES (?, ?, ?)', (timestamp, waves, score))
+    conn.commit()
+    conn.close()
+
+def show_history():
+    try:
+        conn = sqlite3.connect('game_history.db')
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM game_history ORDER BY id DESC LIMIT 10')
+        rows = cursor.fetchall()
+        conn.close()
+        return rows
+    except Exception as e:
+        print(f"Error fetching history: {e}")
+        return []
+
+class Button:
+    def __init__(self, text, x, y, width, height, color, hover_color, action=None):
+        self.text = text
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.color = color
+        self.hover_color = hover_color
+        self.action = action
+
+    def draw(self, screen, font):
+        mouse = pygame.mouse.get_pos()
+        click = pygame.mouse.get_pressed()
+
+        if self.x < mouse[0] < self.x + self.width and self.y < mouse[1] < self.y + self.height:
+            pygame.draw.rect(screen, self.hover_color, (self.x, self.y, self.width, self.height))
+            if click[0] == 1 and self.action is not None:
+                self.action()
+        else:
+            pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
+        text_surface = font.render(self.text, True, WHITE)
+        text_rect = text_surface.get_rect(center=(self.x + self.width // 2, self.y + self.height // 2))
+        screen.blit(text_surface, text_rect)
+
+
+def start_menu():
+    initialize_database()
+    buttons = [
+        Button("Start", SCREENSIZE[0] // 2 - 100, 300, 200, 50, GREEN, (0, 150, 0), start_game),
+        Button("History", SCREENSIZE[0] // 2 - 100, 370, 200, 50, (0, 128, 255), (0, 96, 224), show_game_history),
+        Button("Exit", SCREENSIZE[0] // 2 - 100, 440, 200, 50, RED, (150, 0, 0), exit_game)
+    ]
+    while True:
+        screen.fill(BLACK)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+        title_font = pygame.font.Font(None, 100)
+        title_text = title_font.render("Top Down Shooter", True, WHITE)
+        title_rect = title_text.get_rect(center=(SCREENSIZE[0] // 2, 150))
+        screen.blit(title_text, title_rect)
+
+        for button in buttons:
+            button.draw(screen, font)
+
+        pygame.display.flip()
+
+
+def show_game_history():
+    back_button = Button("Back", 50, 50, 100, 50, (0, 128, 255), (0, 96, 224), start_menu)
+
+    while True:
+        screen.fill(BLACK)
+
+        history_data = show_history()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                start_menu()
+                return
+
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                x, y = pygame.mouse.get_pos()
+
+                if back_button.x < x < back_button.x + back_button.width and \
+                        back_button.y < y < back_button.y + back_button.height:
+                    start_menu()
+
+        title_font = pygame.font.Font(None, 70)
+        title_text = title_font.render("Game History", True, WHITE)
+        title_rect = title_text.get_rect(center=(SCREENSIZE[0] // 2, 100))
+        screen.blit(title_text, title_rect)
+
+        back_button.draw(screen, font)
+
+        y_offset = 150
+        if history_data:
+            for row in history_data:
+                entry_text = f"{row[1]} | Waves: {row[2]} | Score: {row[3]}"
+                text_surface = font.render(entry_text, True, WHITE)
+                screen.blit(text_surface, (50, y_offset))
+                y_offset += 40
+        else:
+            no_data_text = font.render("No game history available.", True, WHITE)
+            screen.blit(no_data_text, (50, y_offset))
+
+        pygame.display.flip()
 
 def load_image(name):
     fullname = os.path.join('data', name)
@@ -18,12 +162,10 @@ def load_image(name):
     image = pygame.image.load(fullname)
     return image
 
-
 def money_draw(money):
     font = pygame.font.Font(None, 50)
     text = font.render('Money: ' + str(money), True, (255, 255, 255))
     screen.blit(text, (10, 10))
-
 
 def score_draw(score):
     font = pygame.font.Font(None, 50)
@@ -48,54 +190,51 @@ class Player(pygame.sprite.Sprite):
         self.multi = 0
 
     def keyboard_input(self):
-        self.velocity_x = 0
-        self.velocity_y = 0
         keys = pygame.key.get_pressed()
+        velocity_x = 0
+        velocity_y = 0
 
         if keys[pygame.K_w]:
-            self.velocity_y = -self.speed
+            velocity_y = -self.speed
         if keys[pygame.K_s]:
-            self.velocity_y = self.speed
+            velocity_y = self.speed
         if keys[pygame.K_d]:
-            self.velocity_x = self.speed
+            velocity_x = self.speed
         if keys[pygame.K_a]:
-            self.velocity_x = -self.speed
+            velocity_x = -self.speed
 
-        if self.velocity_x != 0 and self.velocity_y != 0:
-            self.velocity_x = self.velocity_x / 2 * 2 ** 0.5
-            self.velocity_y = self.velocity_y / 2 * 2 ** 0.5
+        if velocity_x != 0 and velocity_y != 0:
+            velocity_x /= math.sqrt(2)
+            velocity_y /= math.sqrt(2)
 
-        if pygame.mouse.get_pressed() == (1, 0, 0):
-            if not self.cd:
-                mouse_pos = pygame.mouse.get_pos()
-                bullet = Bullet(self.rect.center, mouse_pos, 0,  all_sprites, bullets)
-                if self.multi >= 1:
-                    bullet = Bullet(self.rect.center, mouse_pos, 15, all_sprites, bullets)
-                    bullet = Bullet(self.rect.center, mouse_pos, -15, all_sprites, bullets)
-                if self.multi > 1:
-                    bullet = Bullet(self.rect.center, mouse_pos, 30, all_sprites, bullets)
-                    bullet = Bullet(self.rect.center, mouse_pos, -30, all_sprites, bullets)
-                self.cd = self.cooldown
+        self.rect.x += velocity_x
+        self.rect.y += velocity_y
 
-    def move(self):
-        new_rect = self.rect.move(self.velocity_x, self.velocity_y)
+        self.rect.clamp_ip(screen.get_rect())
 
-        if new_rect.left < 0:
-            new_rect.left = 0
-        if new_rect.right > SCREENSIZE[0]:
-            new_rect.right = SCREENSIZE[0]
-        if new_rect.top < 0:
-            new_rect.top = 0
-        if new_rect.bottom > SCREENSIZE[1]:
-            new_rect.bottom = SCREENSIZE[1]
+    def shoot(self):
+        if pygame.mouse.get_pressed()[0] and self.cd <= 0:
+            mouse_pos = pygame.mouse.get_pos()
 
-        self.rect = new_rect
+            Bullet(self.rect.center, mouse_pos, 0, all_sprites, bullets)
+
+            if self.multi >= 1:
+                Bullet(self.rect.center, mouse_pos, 15, all_sprites, bullets)
+                Bullet(self.rect.center, mouse_pos, -15, all_sprites, bullets)
+            if self.multi > 1:
+                Bullet(self.rect.center, mouse_pos, 30, all_sprites, bullets)
+                Bullet(self.rect.center, mouse_pos, -30, all_sprites, bullets)
+
+            self.cd = self.cooldown
 
     def update(self):
         self.keyboard_input()
-        self.move()
+
+        self.shoot()
+
         self.draw_hp_bar(screen)
-        if self.cd:
+
+        if self.cd > 0:
             self.cd -= 1
 
     def take_damage(self, amount):
@@ -108,7 +247,7 @@ class Player(pygame.sprite.Sprite):
         hp_ratio = self.hp / self.max_hp
         hp_rect = pygame.Rect(self.rect.x + self.image.get_rect().width // 2 - 25, self.rect.y - 10, hp_bar_length, 5)
         pygame.draw.rect(surface, (255, 0, 0), hp_rect)
-        hp_rect[2] *= hp_ratio
+        hp_rect.width *= hp_ratio
         pygame.draw.rect(surface, (0, 255, 0), hp_rect)
 
 
@@ -321,7 +460,10 @@ class Store:
                                 money -= self.current_health_price
                                 self.player.max_hp += self.health_upgrade_amount
                                 self.player.hp = self.player.max_hp
-                                self.current_health_price = int(self.current_health_price * self.health_price_multiplier)
+                                self.current_health_price = int(
+                                    self.current_health_price * self.health_price_multiplier)
+                            else:
+                                print("Not enough money!")
                         elif 145 <= y <= 185:
                             if money >= self.current_bullet_damage_price:
                                 money -= self.current_bullet_damage_price
@@ -350,34 +492,6 @@ class Store:
                             return
 
 
-def game_over_screen(score):
-    while True:
-        screen.fill((0, 0, 0))
-        font = pygame.font.Font(None, 100)
-        text = font.render(f"Game Over", True, (255, 0, 0))
-        screen.blit(text, (SCREENSIZE[0] // 2 - text.get_rect().width // 2, SCREENSIZE[1] // 2 - 150))
-
-        score_text = font.render(f"Your Score: {score}", True, (255, 255, 255))
-        screen.blit(score_text, (SCREENSIZE[0] // 2 - score_text.get_rect().width // 2, SCREENSIZE[1] // 2 - 50))
-
-        play_again_text = font.render("Play Again", True, (0, 255, 0))
-        screen.blit(play_again_text,
-                    (SCREENSIZE[0] // 2 - play_again_text.get_rect().width // 2, SCREENSIZE[1] // 2 + 50))
-
-        pygame.display.flip()
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                x, y = pygame.mouse.get_pos()
-                if SCREENSIZE[0] // 2 - play_again_text.get_rect().width // 2 <= x <= SCREENSIZE[
-                    0] // 2 + play_again_text.get_rect().width // 2 and \
-                        SCREENSIZE[1] // 2 + 50 <= y <= SCREENSIZE[1] // 2 + 50 + play_again_text.get_rect().height:
-                    return True
-
-
 def initialize_game_state():
     global money, difficulty, score, all_sprites, bullets, enemies, player, store, Bullet
     money = 0
@@ -390,24 +504,18 @@ def initialize_game_state():
     store = Store(player)
     Bullet.damage = 50
 
+def exit_game():
+    pygame.quit()
+    sys.exit()
 
-if __name__ == '__main__':
-    pygame.init()
-    screen = pygame.display.set_mode((SCREENSIZE[0], SCREENSIZE[1]))
-    pygame.display.set_caption("TDS")
+def start_game():
+    global money, difficulty, score, all_sprites, bullets, enemies, player, store, Bullet
+
+    initialize_game_state()
+
     running = True
-    screen.fill('black')
-    font = pygame.font.Font(None, 250)
-    text = font.render(str(difficulty + 1), True, (255, 255, 255))
-    screen.blit(text, (SCREENSIZE[0] // 2 - text.get_rect().width // 2,
-                       SCREENSIZE[1] // 2 - text.get_rect().height // 2))
-    pygame.display.update()
-    pygame.time.delay(1000)
-    all_sprites = pygame.sprite.Group()
-    bullets = pygame.sprite.Group()
-    enemies = pygame.sprite.Group()
-    player = Player(all_sprites)
     clock = pygame.time.Clock()
+
     DIFFEVENT = pygame.USEREVENT + 1
     pygame.time.set_timer(DIFFEVENT, 30000)
     DIRECTSPAWN = pygame.USEREVENT + 2
@@ -421,16 +529,17 @@ if __name__ == '__main__':
     FATSPAWN = pygame.USEREVENT + 6
     pygame.time.set_timer(FATSPAWN, 15000)
 
-    store = Store(player)
-
     while running:
         screen.fill('black')
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_m:
                     store.open_store()
+
             elif event.type == DIFFEVENT:
                 difficulty += 1
                 font = pygame.font.Font(None, 250)
@@ -439,24 +548,29 @@ if __name__ == '__main__':
                                    SCREENSIZE[1] // 2 - text.get_rect().height // 2))
                 pygame.display.update()
                 pygame.time.delay(1000)
+
             elif event.type == DIRECTSPAWN:
                 for i in range(3 + math.floor(difficulty * 1.5)):
-                    enemy = DirectedEnemy(all_sprites, enemies)
+                    DirectedEnemy(all_sprites, enemies)
+
             elif event.type == LINESPAWN:
                 for i in range(math.floor(1 + difficulty // 2)):
-                    enemy = LineEnemy(all_sprites, enemies)
+                    LineEnemy(all_sprites, enemies)
                 pygame.time.set_timer(LINEGO, 500)
+
             elif event.type == LINEGO:
                 for enemy in enemies:
                     if isinstance(enemy, LineEnemy):
                         enemy.go = True
                 pygame.time.set_timer(LINEGO, 0)
+
             elif event.type == STILLSPAWN:
                 for i in range(math.floor(1 + difficulty // 2)):
-                    enemy = StillEnemy(all_sprites, enemies)
+                    StillEnemy(all_sprites, enemies)
+
             elif difficulty > 2 and event.type == FATSPAWN:
                 for i in range(math.floor(difficulty // 2)):
-                    enemy = FatEnemy(all_sprites, enemies)
+                    FatEnemy(all_sprites, enemies)
 
         for enemy in enemies:
             distance = pygame.math.Vector2(enemy.rect.center).distance_to(pygame.math.Vector2(player.rect.center))
@@ -471,16 +585,19 @@ if __name__ == '__main__':
             hit_enemies = pygame.sprite.spritecollide(bullet, enemies, False)
             for enemy in hit_enemies:
                 enemy.hp -= Bullet.damage
-                bullet.kill()
                 if enemy.hp <= 0:
                     enemy.kill()
                     money += enemy.cost
                     score += math.floor(enemy.points * (1 + difficulty / 2))
+                bullet.kill()
 
         if not player.alive():
+            save_game_data(difficulty, score)
             if game_over_screen(score):
                 initialize_game_state()
                 continue
+            else:
+                running = False
 
         all_sprites.update()
         enemies.update()
@@ -490,4 +607,39 @@ if __name__ == '__main__':
         pygame.display.update()
         clock.tick(60)
 
-    pygame.quit()
+def game_over_screen(score):
+    while True:
+        screen.fill((0, 0, 0))
+        font = pygame.font.Font(None, 100)
+
+        text = font.render(f"Game Over", True, (255, 0, 0))
+        screen.blit(text, (SCREENSIZE[0] // 2 - text.get_rect().width // 2, SCREENSIZE[1] // 2 - 150))
+
+        score_text = font.render(f"Your Score: {score}", True, (255, 255, 255))
+        screen.blit(score_text, (SCREENSIZE[0] // 2 - score_text.get_rect().width // 2, SCREENSIZE[1] // 2 - 50))
+
+        play_again_text = font.render("Play Again", True, (0, 255, 0))
+        play_again_rect = play_again_text.get_rect(center=(SCREENSIZE[0] // 2, SCREENSIZE[1] // 2 + 100))
+        screen.blit(play_again_text, play_again_rect)
+
+        go_to_menu_text = font.render("Go to Menu", True, (255, 255, 0))
+        go_to_menu_rect = go_to_menu_text.get_rect(center=(SCREENSIZE[0] // 2, SCREENSIZE[1] // 2 + 200))
+        screen.blit(go_to_menu_text, go_to_menu_rect)
+
+        pygame.display.flip()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                continue
+
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                x, y = pygame.mouse.get_pos()
+
+                if play_again_rect.collidepoint(x, y):
+                    return True
+
+                elif go_to_menu_rect.collidepoint(x, y):
+                    pygame.time.wait(0)
+                    start_menu()
+
+start_menu()
