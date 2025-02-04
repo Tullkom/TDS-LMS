@@ -6,6 +6,7 @@ import math
 import sqlite3
 from datetime import datetime
 
+pygame.mixer.init()
 all_sprites = pygame.sprite.Group()
 bullets = pygame.sprite.Group()
 enemies = pygame.sprite.Group()
@@ -17,6 +18,7 @@ SCREENSIZE = (1280, 720)
 money = 0
 difficulty = 0
 score = 0
+shots = [pygame.mixer.Sound(os.path.join('data', 'shoot' + str(i) + '.wav')) for i in range(1, 17)]
 
 pygame.init()
 screen = pygame.display.set_mode((SCREENSIZE[0], SCREENSIZE[1]))
@@ -227,6 +229,8 @@ class Player(pygame.sprite.Sprite):
             if self.multi > 1:
                 Bullet(self.rect.center, mouse_pos, 30, all_sprites, bullets)
                 Bullet(self.rect.center, mouse_pos, -30, all_sprites, bullets)
+
+            random.choice(shots).play()
 
             self.cd = self.cooldown
 
