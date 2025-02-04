@@ -368,7 +368,7 @@ class ShootingEnemy(Enemy):
         self.cost = 20
         self.points = 2
         self.image = pygame.transform.rotate(self.image, random.randint(0, 360))
-        self.cooldown = 150
+        self.cooldown = 200
         self.cd = self.cooldown
         self.shoot_intervals = (120, 100, 80)
 
@@ -542,7 +542,7 @@ def initialize_game_state():
     bullets.empty()
     enemies.empty()
     enemy_bullets.empty()
-    player = Player(all_sprites)
+    player = Player(all_sprites, player_sprite)
     store = Store(player)
     Bullet.damage = 50
 
@@ -572,8 +572,6 @@ def start_game():
     pygame.time.set_timer(FATSPAWN, 15000)
 
     store = Store(player)
-
-    test_enemy = ShootingEnemy(all_sprites, enemies)
 
     while running:
         screen.fill('black')
@@ -614,7 +612,8 @@ def start_game():
                 for i in range(math.floor(1 + difficulty // 2)):
                     StillEnemy(all_sprites, enemies)
                 if difficulty > 5:
-                    ShootingEnemy(all_sprites, enemies)
+                    for i in range(math.floor(difficulty / 2) - 1):
+                        ShootingEnemy(all_sprites, enemies)
             elif difficulty > 2 and event.type == FATSPAWN:
                 for i in range(math.floor(difficulty // 2)):
                     FatEnemy(all_sprites, enemies)
