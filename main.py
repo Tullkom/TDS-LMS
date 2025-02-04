@@ -4,6 +4,7 @@ import os.path
 import random
 import math
 
+
 SCREENSIZE = (1280, 720)
 money = 0
 difficulty = 0
@@ -172,7 +173,7 @@ class DirectedEnemy(Enemy):
             (random.randint(-100, SCREENSIZE[0] + 100), random.randint(SCREENSIZE[1], SCREENSIZE[1] + 100))
         ])
         self.pos = pygame.math.Vector2(self.rect.center)
-        self.max_hp = 100 * (1 + difficulty / 3)
+        self.max_hp = 100 * (1 + difficulty / 10)
         self.hp = self.max_hp
         self.speed = 1 * (1 + difficulty / 8)
         self.cost = 5
@@ -206,6 +207,28 @@ class FatEnemy(DirectedEnemy):
             self.rect.center = round(self.pos.x), round(self.pos.y)
 
 
+class ShootingEnemy(Enemy):
+    def __init__(self, *group):
+        super().__init__(*group)
+        self.image = load_image('shooting_enemy.png')
+        self.max_hp = 50 * (1 + difficulty / 10)
+        self.hp = self.max_hp
+        self.cost = 20
+        self.points = 2
+        self.image = pygame.transform.rotate(self.image, random.randint(0, 360))
+        self.cooldown = 150
+        self.cd = self.cooldown
+        self.shoot_intervals = (120, 100, 80)
+
+    def update(self):
+        super().update()
+        if not self.cd:
+            self.cd = self.cooldown
+        elif self.cd in self.shoot_intervals:
+            enemy_bullet = EnemyBullet(self.rect.center, player.rect.center, all_sprites, enemy_bullets)
+        self.cd -= 1
+
+
 class Bullet(pygame.sprite.Sprite):
     image = load_image('bullet.png')
     damage = 50
@@ -227,6 +250,25 @@ class Bullet(pygame.sprite.Sprite):
                 self.rect.right < 0 or self.rect.left > SCREENSIZE[0]):
             self.kill()
 
+
+class EnemyBullet(pygame.sprite.Sprite):
+    image = load_image('enemy_bullet.png')
+
+    def __init__(self, start_pos, target_pos, *group):
+        super().__init__(*group)
+        self.rect = self.image.get_rect(center=start_pos)
+        angle = math.degrees(math.atan2(target_pos[0] - self.rect.center[0], target_pos[1] - self.rect.center[1]))
+        self.image = pygame.transform.rotate(EnemyBullet.image, int(angle))
+        self.pos = pygame.math.Vector2(self.rect.center)
+        self.move = (pygame.math.Vector2(target_pos) - start_pos).normalize() * 5 * (1 + difficulty / 5)
+
+    def update(self):
+        self.pos += self.move
+        self.rect.center = round(self.pos.x), round(self.pos.y)
+
+        if (self.rect.bottom < 0 or self.rect.top > SCREENSIZE[1] or
+                self.rect.right < 0 or self.rect.left > SCREENSIZE[0]):
+            self.kill()
 
 class Store:
     def __init__(self, player):
@@ -375,6 +417,7 @@ def initialize_game_state():
     all_sprites.empty()
     bullets.empty()
     enemies.empty()
+    enemy_bullets.empty()
     player = Player(all_sprites)
     store = Store(player)
     Bullet.damage = 50
@@ -395,7 +438,9 @@ if __name__ == '__main__':
     all_sprites = pygame.sprite.Group()
     bullets = pygame.sprite.Group()
     enemies = pygame.sprite.Group()
-    player = Player(all_sprites)
+    enemy_bullets = pygame.sprite.Group()
+    player_sprite = pygame.sprite.Group()
+    player = Player(all_sprites, player_sprite)
     clock = pygame.time.Clock()
     DIFFEVENT = pygame.USEREVENT + 1
     pygame.time.set_timer(DIFFEVENT, 30000)
@@ -411,6 +456,8 @@ if __name__ == '__main__':
     pygame.time.set_timer(FATSPAWN, 15000)
 
     store = Store(player)
+
+    test_enemy = ShootingEnemy(all_sprites, enemies)
 
     while running:
         screen.fill('black')
@@ -443,6 +490,8 @@ if __name__ == '__main__':
             elif event.type == STILLSPAWN:
                 for i in range(math.floor(1 + difficulty // 2)):
                     enemy = StillEnemy(all_sprites, enemies)
+                if difficulty > 5:
+                    enemy = ShootingEnemy(all_sprites, enemies)
             elif difficulty > 2 and event.type == FATSPAWN:
                 for i in range(math.floor(difficulty // 2)):
                     enemy = FatEnemy(all_sprites, enemies)
@@ -451,7 +500,7 @@ if __name__ == '__main__':
             distance = pygame.math.Vector2(enemy.rect.center).distance_to(pygame.math.Vector2(player.rect.center))
             if distance < 30:
                 if isinstance(enemy, LineEnemy) and enemy.go:
-                    player.take_damage(50)
+                    player.take_damage(50 * (1 + difficulty / 4))
                     enemy.kill()
                 else:
                     player.take_damage(enemy.dmg)
@@ -465,6 +514,13 @@ if __name__ == '__main__':
                     enemy.kill()
                     money += enemy.cost
                     score += math.floor(enemy.points * (1 + difficulty / 2))
+
+        for enemy_bullet in enemy_bullets:
+            hit_player = pygame.sprite.spritecollide(enemy_bullet, player_sprite, False)
+            if player in hit_player:
+                player.take_damage(20 * (1 + difficulty / 2))
+                enemy_bullet.kill()
+
 
         if not player.alive():
             if game_over_screen(score):
