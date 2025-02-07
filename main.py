@@ -18,7 +18,13 @@ SCREENSIZE = (1280, 720)
 money = 0
 difficulty = 0
 score = 0
-shots = [pygame.mixer.Sound(os.path.join('data', 'shoot' + str(i) + '.wav')) for i in range(1, 17)]
+wave_seconds = 0
+
+player_shot_sounds = [pygame.mixer.Sound(os.path.join('data', 'shot' + str(i) + '.wav')) for i in range(1, 5)]
+shot_sounds = [pygame.mixer.Sound(os.path.join('data', 'player_shoot' + str(i) + '.wav')) for i in range(1, 9)]
+wave_sound = pygame.mixer.Sound(os.path.join('data', 'wave.mp3'))
+button_sound = pygame.mixer.Sound(os.path.join('data', 'button.mp3'))
+buying_sound = pygame.mixer.Sound(os.path.join('data', 'buying.mp3'))
 
 pygame.init()
 screen = pygame.display.set_mode((SCREENSIZE[0], SCREENSIZE[1]))
@@ -86,6 +92,7 @@ class Button:
         if self.x < mouse[0] < self.x + self.width and self.y < mouse[1] < self.y + self.height:
             pygame.draw.rect(screen, self.hover_color, (self.x, self.y, self.width, self.height))
             if click[0] == 1 and self.action is not None:
+                button_sound.play()
                 self.action()
         else:
             pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
@@ -137,6 +144,7 @@ def show_game_history():
 
                 if back_button.x < x < back_button.x + back_button.width and \
                         back_button.y < y < back_button.y + back_button.height:
+                    button_sound.play()
                     start_menu()
 
         title_font = pygame.font.Font(None, 70)
@@ -176,6 +184,13 @@ def score_draw(score):
     font = pygame.font.Font(None, 50)
     text = font.render('Score: ' + str(score), True, (255, 255, 255))
     screen.blit(text, (SCREENSIZE[0] - 10 - text.get_rect().width, 10))
+
+def wave_bar_draw():
+    wave_ratio = wave_seconds / 1080
+    wave_rect = pygame.Rect(100, 700, 1080, 5)
+    pygame.draw.rect(screen, (56, 56, 56), wave_rect)
+    wave_rect[2] *= wave_ratio
+    pygame.draw.rect(screen, (224, 224, 224), wave_rect)
 
 
 class Player(pygame.sprite.Sprite):
@@ -230,7 +245,7 @@ class Player(pygame.sprite.Sprite):
                 Bullet(self.rect.center, mouse_pos, 30, all_sprites, bullets)
                 Bullet(self.rect.center, mouse_pos, -30, all_sprites, bullets)
 
-            random.choice(shots).play()
+            random.choice(player_shot_sounds).play()
 
             self.cd = self.cooldown
 
@@ -426,6 +441,7 @@ class EnemyBullet(pygame.sprite.Sprite):
                 self.rect.right < 0 or self.rect.left > SCREENSIZE[0]):
             self.kill()
 
+
 class Store:
     def __init__(self, player):
         self.player = player
@@ -509,39 +525,45 @@ class Store:
                                 self.player.max_hp += self.health_upgrade_amount
                                 self.player.hp = self.player.max_hp
                                 self.current_health_price = int(self.current_health_price * self.health_price_multiplier)
+                                buying_sound.play()
                         elif 145 <= y <= 185:
                             if money >= self.current_bullet_damage_price:
                                 money -= self.current_bullet_damage_price
                                 Bullet.damage += self.bullet_damage_upgrade_amount
                                 self.current_bullet_damage_price = int(
                                     self.current_bullet_damage_price * self.bullet_damage_price_multiplier)
+                                buying_sound.play()
                         elif 195 <= y <= 235:
                             if money >= self.current_speed_price:
                                 money -= self.current_speed_price
                                 player.speed += self.speed_upgrade_amount
                                 self.current_speed_price = int(
                                     self.current_speed_price * self.speed_price_multiplier)
+                                buying_sound.play()
                         elif 245 <= y <= 285:
                             if money >= self.current_reload_price:
                                 money -= self.current_reload_price
                                 self.player.cooldown -= self.reload_upgrade_amount
                                 self.current_reload_price = int(
                                     self.current_reload_price * self.reload_price_multiplier)
+                                buying_sound.play()
                         elif 295 <= y <= 335 and player.multi < 2:
                             if money >= self.current_multi_price:
                                 money -= self.current_multi_price
                                 self.player.multi += self.multi_upgrade_amount
                                 self.current_multi_price = int(
                                     self.current_multi_price * self.multi_price_multiplier)
+                                buying_sound.play()
                         elif 445 <= y <= 500:
                             return
 
 
 def initialize_game_state():
-    global money, difficulty, score, all_sprites, bullets, enemies, player, store, Bullet
-    money = 0
+    global money, difficulty, score, all_sprites, bullets, enemies, player, store, Bullet, wave_seconds
+    money = 1000
     difficulty = 0
     score = 0
+    wave_seconds = 0
     all_sprites.empty()
     bullets.empty()
     enemies.empty()
@@ -555,7 +577,7 @@ def exit_game():
     sys.exit()
 
 def start_game():
-    global money, difficulty, score, all_sprites, bullets, enemies, player, store, Bullet
+    global money, difficulty, score, all_sprites, bullets, enemies, player, store, Bullet, wave_seconds
 
     initialize_game_state()
 
@@ -575,6 +597,7 @@ def start_game():
     FATSPAWN = pygame.USEREVENT + 6
     pygame.time.set_timer(FATSPAWN, 15000)
 
+    counter = 0
     store = Store(player)
 
     while running:
@@ -591,10 +614,13 @@ def start_game():
             elif event.type == DIFFEVENT:
                 difficulty += 1
                 font = pygame.font.Font(None, 250)
+                wave_sound.play()
                 text = font.render(str(difficulty + 1), True, (255, 255, 255))
                 screen.blit(text, (SCREENSIZE[0] // 2 - text.get_rect().width // 2,
                                    SCREENSIZE[1] // 2 - text.get_rect().height // 2))
                 pygame.display.update()
+                wave_seconds = 0
+                seconds = 0
                 pygame.time.delay(1000)
 
             elif event.type == DIRECTSPAWN:
@@ -622,6 +648,7 @@ def start_game():
                 for i in range(math.floor(difficulty // 2)):
                     FatEnemy(all_sprites, enemies)
 
+        counter += 1
         for enemy in enemies:
             distance = pygame.math.Vector2(enemy.rect.center).distance_to(pygame.math.Vector2(player.rect.center))
             if distance < 30:
@@ -640,6 +667,7 @@ def start_game():
                     money += enemy.cost
                     score += math.floor(enemy.points * (1 + difficulty / 2))
                 bullet.kill()
+                random.choice(shot_sounds).play()
 
         for enemy_bullet in enemy_bullets:
             hit_player = pygame.sprite.spritecollide(enemy_bullet, player_sprite, False)
@@ -661,8 +689,11 @@ def start_game():
         all_sprites.draw(screen)
         money_draw(money)
         score_draw(score)
+        wave_bar_draw()
         pygame.display.update()
         clock.tick(60)
+        wave_seconds += 0.6
+
 
 def game_over_screen(score):
     while True:
@@ -693,9 +724,11 @@ def game_over_screen(score):
                 x, y = pygame.mouse.get_pos()
 
                 if play_again_rect.collidepoint(x, y):
+                    button_sound.play()
                     return True
 
                 elif go_to_menu_rect.collidepoint(x, y):
+                    button_sound.play()
                     pygame.time.wait(0)
                     start_menu()
 
