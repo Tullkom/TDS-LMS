@@ -12,7 +12,7 @@ bullets = pygame.sprite.Group()
 enemies = pygame.sprite.Group()
 enemy_bullets = pygame.sprite.Group()
 player_sprite = pygame.sprite.Group()
-
+particles = pygame.sprite.Group()
 
 SCREENSIZE = (1280, 720)
 money = 0
@@ -205,7 +205,7 @@ class Player(pygame.sprite.Sprite):
         self.speed = 3
         self.max_hp = 100
         self.hp = self.max_hp
-        self.cooldown = 20
+        self.cooldown = 30
         self.cd = self.cooldown
         self.multi = 0
 
@@ -408,10 +408,18 @@ class Bullet(pygame.sprite.Sprite):
         super().__init__(*group)
         self.rect = self.image.get_rect(center=start_pos)
         angle = math.degrees(math.atan2(target_pos[0] - self.rect.center[0], target_pos[1] - self.rect.center[1]))
-        self.image = pygame.transform.rotate(Bullet.image, int(angle))
-        self.pos = pygame.math.Vector2(self.rect.center)
+        self.image = pygame.transform.rotate(Bullet.image, int(angle) - rot)
+        if angle <= 45:
+            correction_angle = abs(angle - 45)
+        else:
+            correction_angle = -(angle - 45)
+        self.pos = (pygame.math.Vector2(self.rect.center) +
+                    pygame.math.Vector2(17, 17).rotate(correction_angle))
         self.speed = 5
         self.move = (pygame.math.Vector2(target_pos) - start_pos).rotate(rot).normalize() * self.speed
+        self.rect.center = round(self.pos.x), round(self.pos.y)
+        for _ in range(random.randint(2, 4)):
+            PlayerParticle(self, particles)
 
     def update(self):
         self.pos += self.move
@@ -439,6 +447,36 @@ class EnemyBullet(pygame.sprite.Sprite):
 
         if (self.rect.bottom < 0 or self.rect.top > SCREENSIZE[1] or
                 self.rect.right < 0 or self.rect.left > SCREENSIZE[0]):
+            self.kill()
+
+
+class PlayerParticle(pygame.sprite.Sprite):
+    def __init__(self, bullet, *groups):
+        super().__init__(*groups)
+        self.size = random.randint(2, 4)
+        self.pos = bullet.rect.center
+        self.velocity = bullet.move.rotate(random.randint(-45, 45)) * random.uniform(0.3, 0.45)
+
+    def update(self):
+        self.pos += self.velocity
+        self.size -= 0.1
+        pygame.draw.circle(screen, (255, 255, 255), self.pos, self.size)
+        if self.size <= 0:
+            self.kill()
+
+
+class EnemyParticle(pygame.sprite.Sprite):
+    def __init__(self, bullet, *groups):
+        super().__init__(*groups)
+        self.size = random.randint(4, 6)
+        self.pos = bullet.rect.center
+        self.velocity = bullet.move.rotate(180 + random.randint(-90, 90)) * random.uniform(0.6, 0.9)
+
+    def update(self):
+        self.pos += self.velocity
+        self.size -= 0.1
+        pygame.draw.circle(screen, (237, 28, 36), self.pos, self.size)
+        if self.size <= 0:
             self.kill()
 
 
@@ -559,14 +597,15 @@ class Store:
 
 
 def initialize_game_state():
-    global money, difficulty, score, all_sprites, bullets, enemies, player, store, Bullet, wave_seconds
-    money = 1000
+    global money, difficulty, score, all_sprites, bullets, enemies, particles, player, store, Bullet, wave_seconds
+    money = 0
     difficulty = 0
     score = 0
     wave_seconds = 0
     all_sprites.empty()
     bullets.empty()
     enemies.empty()
+    particles.empty()
     enemy_bullets.empty()
     player = Player(all_sprites, player_sprite)
     store = Store(player)
@@ -577,7 +616,7 @@ def exit_game():
     sys.exit()
 
 def start_game():
-    global money, difficulty, score, all_sprites, bullets, enemies, player, store, Bullet, wave_seconds
+    global money, difficulty, score, all_sprites, bullets, enemies, particles, player, store, Bullet, wave_seconds
 
     initialize_game_state()
 
@@ -597,7 +636,6 @@ def start_game():
     FATSPAWN = pygame.USEREVENT + 6
     pygame.time.set_timer(FATSPAWN, 15000)
 
-    counter = 0
     store = Store(player)
 
     while running:
@@ -648,7 +686,6 @@ def start_game():
                 for i in range(math.floor(difficulty // 2)):
                     FatEnemy(all_sprites, enemies)
 
-        counter += 1
         for enemy in enemies:
             distance = pygame.math.Vector2(enemy.rect.center).distance_to(pygame.math.Vector2(player.rect.center))
             if distance < 30:
@@ -666,6 +703,8 @@ def start_game():
                     enemy.kill()
                     money += enemy.cost
                     score += math.floor(enemy.points * (1 + difficulty / 2))
+                for i in range(random.randint(3, 5)):
+                    EnemyParticle(bullet, particles)
                 bullet.kill()
                 random.choice(shot_sounds).play()
 
@@ -687,6 +726,7 @@ def start_game():
         all_sprites.update()
         enemies.update()
         all_sprites.draw(screen)
+        particles.update()
         money_draw(money)
         score_draw(score)
         wave_bar_draw()
