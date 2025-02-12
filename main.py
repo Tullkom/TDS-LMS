@@ -22,9 +22,10 @@ wave_seconds = 0
 
 player_shot_sounds = [pygame.mixer.Sound(os.path.join('data', 'shot' + str(i) + '.wav')) for i in range(1, 5)]
 shot_sounds = [pygame.mixer.Sound(os.path.join('data', 'player_shoot' + str(i) + '.wav')) for i in range(1, 9)]
-wave_sound = pygame.mixer.Sound(os.path.join('data', 'wave.mp3'))
+wave_sound = pygame.mixer.Sound(os.path.join('data', 'wave.wav'))
 button_sound = pygame.mixer.Sound(os.path.join('data', 'button.mp3'))
 buying_sound = pygame.mixer.Sound(os.path.join('data', 'buying.mp3'))
+score_sound = pygame.mixer.Sound(os.path.join('data', 'score.wav'))
 
 pygame.init()
 screen = pygame.display.set_mode((SCREENSIZE[0], SCREENSIZE[1]))
@@ -127,7 +128,7 @@ def start_menu():
 
 
 def show_game_history():
-    back_button = Button("Back", 50, 50, 100, 50, (0, 128, 255), (0, 96, 224), start_menu)
+    back_button = Button("Back", 1330, 50, 100, 50, (0, 128, 255), (0, 96, 224), start_menu)
 
     while True:
         screen.fill(BLACK)
@@ -136,6 +137,7 @@ def show_game_history():
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                button_sound.play()
                 start_menu()
                 return
 
@@ -149,9 +151,11 @@ def show_game_history():
 
         title_font = pygame.font.Font(None, 70)
         title_text = title_font.render("Game History", True, WHITE)
-        title_rect = title_text.get_rect(center=(SCREENSIZE[0] // 2, 100))
+        title_rect = title_text.get_rect(center=(SCREENSIZE[0] // 2 + back_button.x - 50, 100))
         screen.blit(title_text, title_rect)
 
+        if back_button.x > 51:
+            back_button.x -= (back_button.x - 50) / 100
         back_button.draw(screen, font)
 
         y_offset = 150
@@ -159,7 +163,7 @@ def show_game_history():
             for row in history_data:
                 entry_text = f"{row[1]} | Waves: {row[2]} | Score: {row[3]}"
                 text_surface = font.render(entry_text, True, WHITE)
-                screen.blit(text_surface, (50, y_offset))
+                screen.blit(text_surface, (back_button.x, y_offset))
                 y_offset += 40
         else:
             no_data_text = font.render("No game history available.", True, WHITE)
@@ -191,6 +195,18 @@ def wave_bar_draw():
     pygame.draw.rect(screen, (56, 56, 56), wave_rect)
     wave_rect[2] *= wave_ratio
     pygame.draw.rect(screen, (224, 224, 224), wave_rect)
+
+def score_update(score):
+    if score <= 10:
+        return 0.01
+    else:
+        return score / 1000
+
+def menu_update(coord):
+    if coord <= 10:
+        return 1
+    else:
+        return coord / 100
 
 
 class Player(pygame.sprite.Sprite):
@@ -736,40 +752,60 @@ def start_game():
 
 
 def game_over_screen(score):
+    score_temp = 0
+    last_score = -1
+    score_showed = False
     while True:
         screen.fill((0, 0, 0))
+        font_big = pygame.font.Font(None, 150)
+
+        game_over_text = font_big.render(f"Game Over", True, (255, 255, 255))
+        screen.blit(game_over_text, game_over_text.get_rect(topleft=(SCREENSIZE[0] // 14, SCREENSIZE[1] // 2 - 250)))
+
         font = pygame.font.Font(None, 100)
+        floor_score = math.floor(score_temp)
+        score_text = font.render("Score:", True, (255, 255, 255))
+        screen.blit(score_text, score_text.get_rect(topleft=(SCREENSIZE[0] // 14, SCREENSIZE[1] // 2 - 50)))
+        score_text = font_big.render(str(floor_score), True, (255, 255, 255))
+        screen.blit(score_text, score_text.get_rect(center=(SCREENSIZE[0] // 2 + 250, SCREENSIZE[1] // 2 - 12)))
 
-        text = font.render(f"Game Over", True, (255, 0, 0))
-        screen.blit(text, (SCREENSIZE[0] // 2 - text.get_rect().width // 2, SCREENSIZE[1] // 2 - 150))
-
-        score_text = font.render(f"Your Score: {score}", True, (255, 255, 255))
-        screen.blit(score_text, (SCREENSIZE[0] // 2 - score_text.get_rect().width // 2, SCREENSIZE[1] // 2 - 50))
-
-        play_again_text = font.render("Play Again", True, (0, 255, 0))
-        play_again_rect = play_again_text.get_rect(center=(SCREENSIZE[0] // 2, SCREENSIZE[1] // 2 + 100))
+        play_again_text = font.render("Play Again", True, (255, 255, 255))
+        play_again_rect = play_again_text.get_rect(topleft=(SCREENSIZE[0] // 14, SCREENSIZE[1] // 2 + 100))
         screen.blit(play_again_text, play_again_rect)
 
-        go_to_menu_text = font.render("Go to Menu", True, (255, 255, 0))
-        go_to_menu_rect = go_to_menu_text.get_rect(center=(SCREENSIZE[0] // 2, SCREENSIZE[1] // 2 + 200))
+        go_to_menu_text = font.render("Go to Menu", True, (255, 255, 255))
+        go_to_menu_rect = go_to_menu_text.get_rect(topleft=(SCREENSIZE[0] // 14, SCREENSIZE[1] // 2 + 200))
         screen.blit(go_to_menu_text, go_to_menu_rect)
-
-        pygame.display.flip()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                continue
+                button_sound.play()
+                pygame.time.wait(0)
+                start_menu()
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 x, y = pygame.mouse.get_pos()
+                if score_showed:
+                    if play_again_rect.collidepoint(x, y):
+                        button_sound.play()
+                        return True
 
-                if play_again_rect.collidepoint(x, y):
-                    button_sound.play()
-                    return True
+                    elif go_to_menu_rect.collidepoint(x, y):
+                        button_sound.play()
+                        pygame.time.wait(0)
+                        start_menu()
+                else:
+                    score_temp = score
 
-                elif go_to_menu_rect.collidepoint(x, y):
-                    button_sound.play()
-                    pygame.time.wait(0)
-                    start_menu()
+        if score_temp < score:
+            score_temp += score_update(score - score_temp)
+        elif not score_showed:
+            score_showed = True
+        if last_score != floor_score:
+            pygame.mixer.stop()
+            score_sound.play()
+
+        pygame.display.update()
+        last_score = floor_score
 
 start_menu()
