@@ -28,15 +28,9 @@ buying_sound = pygame.mixer.Sound(os.path.join('data', 'buying.mp3'))
 score_sound = pygame.mixer.Sound(os.path.join('data', 'score.wav'))
 
 pygame.init()
+font = pygame.font.Font(None, 50)
 screen = pygame.display.set_mode((SCREENSIZE[0], SCREENSIZE[1]))
 pygame.display.set_caption("TDS")
-
-font = pygame.font.Font(None, 50)
-
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GREEN = (0, 255, 0)
-RED = (255, 0, 0)
 
 def initialize_database():
     try:
@@ -59,7 +53,7 @@ def save_game_data(waves, score):
     conn = sqlite3.connect('game_history.db')
     cursor = conn.cursor()
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    cursor.execute('INSERT INTO game_history (timestamp, waves, score) VALUES (?, ?, ?)', (timestamp, waves, score))
+    cursor.execute('INSERT INTO game_history (timestamp, waves, score) VALUES (?, ?, ?)', (timestamp, waves + 1, score))
     conn.commit()
     conn.close()
 
@@ -75,101 +69,281 @@ def show_history():
         print(f"Error fetching history: {e}")
         return []
 
+def fade_out(player_only):
+    fade_surface = pygame.Surface(SCREENSIZE)
+    fade_surface.fill((0, 0, 0))
+
+    for alpha in range(255, -1, -5):
+        screen.fill('black')
+        fade_surface.set_alpha(alpha)
+        if player_only:
+            all_sprites.update()
+            all_sprites.draw(screen)
+            screen.blit(fade_surface, (0, 0))
+        else:
+            money_draw(0)
+            score_draw(0)
+            wave_bar_draw()
+            screen.blit(fade_surface, (0, 0))
+            all_sprites.update()
+            all_sprites.draw(screen)
+        pygame.time.delay(1)
+        pygame.display.update()
+
+def fade_in(money, score):
+    fade_surface = pygame.Surface(SCREENSIZE)
+    fade_surface.fill((0, 0, 0))
+
+    for alpha in range(0, 255, 1):
+        fade_surface.set_alpha(alpha)
+        money_draw(money)
+        score_draw(score)
+        wave_bar_draw()
+        all_sprites.update()
+        all_sprites.draw(screen)
+        particles.update()
+        screen.blit(fade_surface, (0, 0))
+        pygame.time.delay(5)
+        pygame.display.update()
+        if money > 0:
+            money -= 1
+    return True
+
 class Button:
-    def __init__(self, text, x, y, width, height, color, hover_color, action=None):
+    def __init__(self, text, x, y, width, height):
         self.text = text
         self.x = x
         self.y = y
         self.width = width
         self.height = height
-        self.color = color
-        self.hover_color = hover_color
-        self.action = action
+        self.rect = pygame.rect.Rect(x, y, width, height)
 
     def draw(self, screen, font):
-        mouse = pygame.mouse.get_pos()
-        click = pygame.mouse.get_pressed()
-
-        if self.x < mouse[0] < self.x + self.width and self.y < mouse[1] < self.y + self.height:
-            pygame.draw.rect(screen, self.hover_color, (self.x, self.y, self.width, self.height))
-            if click[0] == 1 and self.action is not None:
-                button_sound.play()
-                self.action()
-        else:
-            pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
-        text_surface = font.render(self.text, True, WHITE)
+        text_surface = font.render(self.text, True, 'white')
         text_rect = text_surface.get_rect(center=(self.x + self.width // 2, self.y + self.height // 2))
         screen.blit(text_surface, text_rect)
 
-
-def start_menu():
-    initialize_database()
-    buttons = [
-        Button("Start", SCREENSIZE[0] // 2 - 100, 300, 200, 50, GREEN, (0, 150, 0), start_game),
-        Button("History", SCREENSIZE[0] // 2 - 100, 370, 200, 50, (0, 128, 255), (0, 96, 224), show_game_history),
-        Button("Exit", SCREENSIZE[0] // 2 - 100, 440, 200, 50, RED, (150, 0, 0), exit_game)
-    ]
-    while True:
-        screen.fill(BLACK)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-
-        title_font = pygame.font.Font(None, 100)
-        title_text = title_font.render("Top Down Shooter", True, WHITE)
-        title_rect = title_text.get_rect(center=(SCREENSIZE[0] // 2, 150))
-        screen.blit(title_text, title_rect)
-
-        for button in buttons:
-            button.draw(screen, font)
-
-        pygame.display.flip()
-
-
-def show_game_history():
-    back_button = Button("Back", 1330, 50, 100, 50, (0, 128, 255), (0, 96, 224), start_menu)
-
-    while True:
-        screen.fill(BLACK)
-
-        history_data = show_history()
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                button_sound.play()
-                start_menu()
-                return
-
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                x, y = pygame.mouse.get_pos()
-
-                if back_button.x < x < back_button.x + back_button.width and \
-                        back_button.y < y < back_button.y + back_button.height:
-                    button_sound.play()
-                    start_menu()
-
+def draw_texts(buttons, history_data, mode=None):
+    title_font = pygame.font.Font(None, 100)
+    title_text = title_font.render("Top Down Shooter", True, 'white')
+    title_rect = title_text.get_rect(center=(buttons[0].x + 100, buttons[0].y - 150))
+    screen.blit(title_text, title_rect)
+    if mode == 'history':
         title_font = pygame.font.Font(None, 70)
-        title_text = title_font.render("Game History", True, WHITE)
-        title_rect = title_text.get_rect(center=(SCREENSIZE[0] // 2 + back_button.x - 50, 100))
+        title_text = title_font.render("Game History", True, 'white')
+        title_rect = title_text.get_rect(center=(SCREENSIZE[0] // 2 + buttons[3].x - 50, 100))
         screen.blit(title_text, title_rect)
-
-        if back_button.x > 51:
-            back_button.x -= (back_button.x - 50) / 100
-        back_button.draw(screen, font)
-
         y_offset = 150
         if history_data:
             for row in history_data:
-                entry_text = f"{row[1]} | Waves: {row[2]} | Score: {row[3]}"
-                text_surface = font.render(entry_text, True, WHITE)
-                screen.blit(text_surface, (back_button.x, y_offset))
+                entry_text = f"{row[1]} | Wave: {row[2]} | Score: {row[3]}"
+                text_surface = font.render(entry_text, True, 'white')
+                screen.blit(text_surface, (buttons[3].x, y_offset))
                 y_offset += 40
         else:
-            no_data_text = font.render("No game history available.", True, WHITE)
-            screen.blit(no_data_text, (50, y_offset))
+            no_data_text = font.render("No game history available.", True, 'white')
+            screen.blit(no_data_text, (buttons[3].x, y_offset))
 
-        pygame.display.flip()
+def draw_gameover_texts(floor_score, text_y):
+    font_big = pygame.font.Font(None, 150)
+
+    game_over_text = font_big.render(f"Game Over", True, (255, 255, 255))
+    screen.blit(game_over_text,
+                game_over_text.get_rect(topleft=(SCREENSIZE[0] // 14, text_y - 200)))
+
+    font = pygame.font.Font(None, 100)
+
+    score_text = font.render("Score:", True, (255, 255, 255))
+    screen.blit(score_text, score_text.get_rect(topleft=(SCREENSIZE[0] // 14, text_y)))
+    score_text = font_big.render(str(floor_score), True, (255, 255, 255))
+    screen.blit(score_text, score_text.get_rect(center=(SCREENSIZE[0] // 2 + 250, text_y + 38)))
+
+    play_again_text = font.render("Play Again", True, (255, 255, 255))
+    play_again_rect = play_again_text.get_rect(topleft=(SCREENSIZE[0] // 14, text_y + 150))
+    screen.blit(play_again_text, play_again_rect)
+
+    go_to_menu_text = font.render("Go to Menu", True, (255, 255, 255))
+    go_to_menu_rect = go_to_menu_text.get_rect(topleft=(SCREENSIZE[0] // 14, text_y + 250))
+    screen.blit(go_to_menu_text, go_to_menu_rect)
+    return play_again_rect, go_to_menu_rect
+
+def menu(menu_part, score=0):
+    initialize_database()
+    font = pygame.font.Font(None, 50)
+    menu_part = menu_part
+    score_temp = 0
+    last_score = -1
+    score_showed = False
+    game_over_text_y = SCREENSIZE[1] * 3 // 2 - 50
+
+    init_buttons = [Button("Start", SCREENSIZE[0] // 2 - 100, 300, 200, 50),
+               Button("History", SCREENSIZE[0] // 2 - 100, 370, 200, 50),
+               Button("Exit", SCREENSIZE[0] // 2 - 100, 440, 200, 50),
+               Button("Back", 1330, 50, 100, 50)]
+    buttons = init_buttons
+
+    while True:
+        history_data = show_history()
+        while menu_part == 'main':
+            font = pygame.font.Font(None, 50)
+            screen.fill('black')
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    x, y = pygame.mouse.get_pos()
+                    if buttons[0].rect.collidepoint(x, y):
+                        menu_part = 'game'
+                        button_sound.play()
+                    elif buttons[1].rect.collidepoint(x, y):
+                        menu_part = 'history'
+                        button_sound.play()
+                    elif buttons[2].rect.collidepoint(x, y):
+                        pygame.quit()
+                        sys.exit()
+
+            if buttons[0].x < SCREENSIZE[0] // 2 - 101:
+                for button in buttons[:3]:
+                    button.x += (SCREENSIZE[0] // 2 - 100 - button.x) / 100
+                    button.rect = pygame.rect.Rect(button.x, button.y, button.width, button.height)
+            if buttons[3].x < 1329:
+                buttons[3].x -= (buttons[3].x - 1329) / 100
+                buttons[3].rect = pygame.rect.Rect(buttons[3].x, buttons[3].y, buttons[3].width, buttons[3].height)
+
+            for button in buttons:
+                button.draw(screen, font)
+            draw_texts(buttons, history_data, 'history')
+
+            pygame.display.flip()
+
+        while menu_part == 'history':
+            screen.fill('black')
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    menu_part = 'main'
+                    button_sound.play()
+
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    x, y = pygame.mouse.get_pos()
+                    if buttons[3].rect.collidepoint(x, y):
+                        menu_part = 'main'
+                        button_sound.play()
+
+            if buttons[3].x > 51:
+                buttons[3].x -= (buttons[3].x - 50) / 100
+                buttons[3].rect = pygame.rect.Rect(buttons[3].x, buttons[3].y, buttons[3].width, buttons[3].height)
+            if buttons[0].x > -739:
+                for button in buttons[:3]:
+                    button.x -= (button.x + 739) / 100
+                    button.rect = pygame.rect.Rect(button.x, button.y, button.width, button.height)
+
+            for button in buttons:
+                button.draw(screen, font)
+
+            draw_texts(buttons, history_data, 'history')
+            pygame.display.flip()
+
+        while menu_part == 'game':
+            screen.fill('black')
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+
+            if buttons[0].y < 1019:
+                for button in buttons[:3]:
+                    button.y += (1020 - button.y) / 100
+                    button.rect = pygame.rect.Rect(button.x, button.y, button.width, button.height)
+            else:
+                start_game()
+                menu_part = 'main'
+                buttons = [Button("Start", SCREENSIZE[0] // 2 - 100, 300, 200, 50),
+                           Button("History", SCREENSIZE[0] // 2 - 100, 370, 200, 50),
+                           Button("Exit", SCREENSIZE[0] // 2 - 100, 440, 200, 50),
+                           Button("Back", 1330, 50, 100, 50)]
+
+            for button in buttons:
+                button.draw(screen, font)
+            draw_texts(buttons, history_data)
+
+            pygame.display.flip()
+
+        while menu_part == 'game_over':
+            screen.fill((0, 0, 0))
+            floor_score = math.floor(score_temp)
+            play_again_rect, go_to_menu_rect = draw_gameover_texts(floor_score, game_over_text_y)
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    button_sound.play()
+                    menu_part = 'main'
+
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    x, y = pygame.mouse.get_pos()
+                    if score_showed:
+                        if play_again_rect.collidepoint(x, y):
+                            menu_part = 'game_over_to_game'
+                            button_sound.play()
+
+                        elif go_to_menu_rect.collidepoint(x, y):
+                            button_sound.play()
+                            buttons = [Button("Start", SCREENSIZE[0] // 2 - 100, 1020, 200, 50),
+                                       Button("History", SCREENSIZE[0] // 2 - 100, 1090, 200, 50),
+                                       Button("Exit", SCREENSIZE[0] // 2 - 100, 1160, 200, 50),
+                                       Button("Back", 1330, 50, 100, 50)]
+                            font = pygame.font.Font(None, 50)
+                            menu_part = 'game_over_to_main'
+                    else:
+                        score_temp = score
+
+            if game_over_text_y > 311:
+                game_over_text_y -= (game_over_text_y - 310) / 100
+
+            if score_temp < score:
+                score_temp += score_update(score - score_temp)
+            elif not score_showed:
+                score_showed = True
+            if last_score != floor_score:
+                pygame.mixer.stop()
+                score_sound.play()
+
+            pygame.display.update()
+            last_score = floor_score
+
+        while menu_part == 'game_over_to_main':
+            screen.fill('black')
+            if buttons[0].y > 301:
+                for i in range(3):
+                    buttons[i].y -= (buttons[i].y - init_buttons[i].y) / 100
+                    buttons[i].rect = pygame.rect.Rect(buttons[i].x, buttons[i].y, buttons[i].width, buttons[i].height)
+            else:
+                menu_part = 'main'
+                buttons = init_buttons
+
+            if game_over_text_y > -969:
+                game_over_text_y -= (game_over_text_y + 970) / 100
+
+            for button in buttons:
+                button.draw(screen, font)
+            draw_texts(buttons, history_data)
+            draw_gameover_texts(floor_score, game_over_text_y)
+
+            pygame.display.flip()
+
+        while menu_part == 'game_over_to_game':
+            screen.fill('black')
+
+            if game_over_text_y < 1589:
+                game_over_text_y += (1590 - game_over_text_y) / 100
+            else:
+                start_game()
+                game_over_text_y = SCREENSIZE[1] * 3 // 2 - 50
+
+            draw_gameover_texts(floor_score, game_over_text_y)
+
+            pygame.display.flip()
 
 def load_image(name):
     fullname = os.path.join('data', name)
@@ -221,9 +395,10 @@ class Player(pygame.sprite.Sprite):
         self.speed = 3
         self.max_hp = 100
         self.hp = self.max_hp
-        self.cooldown = 30
+        self.cooldown = 25
         self.cd = self.cooldown
         self.multi = 0
+        self.able = False
 
     def keyboard_input(self):
         keys = pygame.key.get_pressed()
@@ -266,9 +441,9 @@ class Player(pygame.sprite.Sprite):
             self.cd = self.cooldown
 
     def update(self):
-        self.keyboard_input()
-
-        self.shoot()
+        if self.able:
+            self.keyboard_input()
+            self.shoot()
 
         self.draw_hp_bar(screen)
 
@@ -481,6 +656,21 @@ class PlayerParticle(pygame.sprite.Sprite):
             self.kill()
 
 
+class DeathParticle(pygame.sprite.Sprite):
+    def __init__(self, player_c, *groups):
+        super().__init__(*groups)
+        self.size = random.randint(8, 12)
+        self.pos = player_c
+        self.velocity = (pygame.math.Vector2(3, 4).rotate(random.randint(-180, 180)) * random.uniform(0.6, 0.9))
+
+    def update(self):
+        self.pos += self.velocity
+        self.size -= 0.2
+        pygame.draw.circle(screen, (255, 255, 255), self.pos, self.size)
+        if self.size <= 0:
+            self.kill()
+
+
 class EnemyParticle(pygame.sprite.Sprite):
     def __init__(self, bullet, *groups):
         super().__init__(*groups)
@@ -635,6 +825,9 @@ def start_game():
     global money, difficulty, score, all_sprites, bullets, enemies, particles, player, store, Bullet, wave_seconds
 
     initialize_game_state()
+    fade_out(True)
+    pygame.time.delay(500)
+    fade_out(False)
 
     running = True
     clock = pygame.time.Clock()
@@ -653,12 +846,17 @@ def start_game():
     pygame.time.set_timer(FATSPAWN, 15000)
 
     store = Store(player)
+    player.able = True
+    game_ended = False
 
     while running:
         screen.fill('black')
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                save_game_data(difficulty, score)
+                menu('game_over', score=score)
+                pygame.time.set_timer(GAMEOVER, 0)
                 running = False
 
             elif event.type == pygame.KEYDOWN:
@@ -674,7 +872,6 @@ def start_game():
                                    SCREENSIZE[1] // 2 - text.get_rect().height // 2))
                 pygame.display.update()
                 wave_seconds = 0
-                seconds = 0
                 pygame.time.delay(1000)
 
             elif event.type == DIRECTSPAWN:
@@ -705,6 +902,7 @@ def start_game():
         for enemy in enemies:
             distance = pygame.math.Vector2(enemy.rect.center).distance_to(pygame.math.Vector2(player.rect.center))
             if distance < 30:
+                player_coords = player.rect.center
                 if isinstance(enemy, LineEnemy) and enemy.go:
                     player.take_damage(50 * (1 + difficulty / 4))
                     enemy.kill()
@@ -728,16 +926,20 @@ def start_game():
             hit_player = pygame.sprite.spritecollide(enemy_bullet, player_sprite, False)
             if player in hit_player:
                 player.take_damage(20 * (1 + difficulty / 2))
+                player_coords = player.rect.center
                 enemy_bullet.kill()
 
 
-        if not player.alive():
+        if not player.alive() and not game_ended:
             save_game_data(difficulty, score)
-            if game_over_screen(score):
-                initialize_game_state()
-                continue
-            else:
-                running = False
+            for _ in range(30):
+                DeathParticle(player_coords, particles)
+            game_ended = True
+
+        if game_ended:
+            fade_in(money, score)
+            running = False
+            menu('game_over', score=score)
 
         all_sprites.update()
         enemies.update()
@@ -750,62 +952,4 @@ def start_game():
         clock.tick(60)
         wave_seconds += 0.6
 
-
-def game_over_screen(score):
-    score_temp = 0
-    last_score = -1
-    score_showed = False
-    while True:
-        screen.fill((0, 0, 0))
-        font_big = pygame.font.Font(None, 150)
-
-        game_over_text = font_big.render(f"Game Over", True, (255, 255, 255))
-        screen.blit(game_over_text, game_over_text.get_rect(topleft=(SCREENSIZE[0] // 14, SCREENSIZE[1] // 2 - 250)))
-
-        font = pygame.font.Font(None, 100)
-        floor_score = math.floor(score_temp)
-        score_text = font.render("Score:", True, (255, 255, 255))
-        screen.blit(score_text, score_text.get_rect(topleft=(SCREENSIZE[0] // 14, SCREENSIZE[1] // 2 - 50)))
-        score_text = font_big.render(str(floor_score), True, (255, 255, 255))
-        screen.blit(score_text, score_text.get_rect(center=(SCREENSIZE[0] // 2 + 250, SCREENSIZE[1] // 2 - 12)))
-
-        play_again_text = font.render("Play Again", True, (255, 255, 255))
-        play_again_rect = play_again_text.get_rect(topleft=(SCREENSIZE[0] // 14, SCREENSIZE[1] // 2 + 100))
-        screen.blit(play_again_text, play_again_rect)
-
-        go_to_menu_text = font.render("Go to Menu", True, (255, 255, 255))
-        go_to_menu_rect = go_to_menu_text.get_rect(topleft=(SCREENSIZE[0] // 14, SCREENSIZE[1] // 2 + 200))
-        screen.blit(go_to_menu_text, go_to_menu_rect)
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                button_sound.play()
-                pygame.time.wait(0)
-                start_menu()
-
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                x, y = pygame.mouse.get_pos()
-                if score_showed:
-                    if play_again_rect.collidepoint(x, y):
-                        button_sound.play()
-                        return True
-
-                    elif go_to_menu_rect.collidepoint(x, y):
-                        button_sound.play()
-                        pygame.time.wait(0)
-                        start_menu()
-                else:
-                    score_temp = score
-
-        if score_temp < score:
-            score_temp += score_update(score - score_temp)
-        elif not score_showed:
-            score_showed = True
-        if last_score != floor_score:
-            pygame.mixer.stop()
-            score_sound.play()
-
-        pygame.display.update()
-        last_score = floor_score
-
-start_menu()
+menu('main')
