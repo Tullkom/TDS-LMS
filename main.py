@@ -205,10 +205,10 @@ def menu(menu_part, score=0):
 
             if buttons[0].x < SCREENSIZE[0] // 2 - 101:
                 for button in buttons[:3]:
-                    button.x += (SCREENSIZE[0] // 2 - 100 - button.x) / 100
+                    button.x += (SCREENSIZE[0] // 2 - 100 - button.x) / 50
                     button.rect = pygame.rect.Rect(button.x, button.y, button.width, button.height)
             if buttons[3].x < 1329:
-                buttons[3].x -= (buttons[3].x - 1329) / 100
+                buttons[3].x -= (buttons[3].x - 1329) / 50
                 buttons[3].rect = pygame.rect.Rect(buttons[3].x, buttons[3].y, buttons[3].width, buttons[3].height)
 
             for button in buttons:
@@ -232,11 +232,11 @@ def menu(menu_part, score=0):
                         button_sound.play()
 
             if buttons[3].x > 51:
-                buttons[3].x -= (buttons[3].x - 50) / 100
+                buttons[3].x -= (buttons[3].x - 50) / 50
                 buttons[3].rect = pygame.rect.Rect(buttons[3].x, buttons[3].y, buttons[3].width, buttons[3].height)
             if buttons[0].x > -739:
                 for button in buttons[:3]:
-                    button.x -= (button.x + 739) / 100
+                    button.x -= (button.x + 739) / 50
                     button.rect = pygame.rect.Rect(button.x, button.y, button.width, button.height)
 
             for button in buttons:
@@ -299,7 +299,7 @@ def menu(menu_part, score=0):
                         score_temp = score
 
             if game_over_text_y > 311:
-                game_over_text_y -= (game_over_text_y - 310) / 100
+                game_over_text_y -= (game_over_text_y - 310) / 20
 
             if score_temp < score:
                 score_temp += score_update(score - score_temp)
@@ -316,14 +316,16 @@ def menu(menu_part, score=0):
             screen.fill('black')
             if buttons[0].y > 301:
                 for i in range(3):
-                    buttons[i].y -= (buttons[i].y - init_buttons[i].y) / 100
+                    buttons[i].y -= (buttons[i].y - init_buttons[i].y) / 20
                     buttons[i].rect = pygame.rect.Rect(buttons[i].x, buttons[i].y, buttons[i].width, buttons[i].height)
             else:
+                for event in pygame.event.get():
+                    pass
                 menu_part = 'main'
                 buttons = init_buttons
 
             if game_over_text_y > -969:
-                game_over_text_y -= (game_over_text_y + 970) / 100
+                game_over_text_y -= (game_over_text_y + 970) / 50
 
             for button in buttons:
                 button.draw(screen, font)
@@ -355,13 +357,15 @@ def load_image(name):
 
 def money_draw(money):
     font = pygame.font.Font(None, 50)
-    text = font.render('Money: ' + str(money), True, (255, 255, 255))
-    screen.blit(text, (10, 10))
+    text = font.render(str(money), True, (255, 255, 255))
+    pygame.draw.circle(screen, (255, 255, 255), (35, 25), 6)
+    screen.blit(text, (55, 10))
 
 def score_draw(score):
     font = pygame.font.Font(None, 50)
-    text = font.render('Score: ' + str(score), True, (255, 255, 255))
-    screen.blit(text, (SCREENSIZE[0] - 10 - text.get_rect().width, 10))
+    text = font.render(str(score), True, (255, 255, 255))
+    screen.blit(text, (SCREENSIZE[0] - 50 - text.get_rect().width, 10))
+    screen.blit(trophy, (SCREENSIZE[0] - 40, 13))
 
 def wave_bar_draw():
     wave_ratio = wave_seconds / 1080
@@ -537,7 +541,7 @@ class DirectedEnemy(Enemy):
         self.pos = pygame.math.Vector2(self.rect.center)
         self.max_hp = 100 * (1 + difficulty / 10)
         self.hp = self.max_hp
-        self.speed = 1 * (1 + difficulty / 8)
+        self.speed = 1 * (1 + difficulty / 12)
         self.cost = 5
 
     def update(self):
@@ -686,124 +690,8 @@ class EnemyParticle(pygame.sprite.Sprite):
             self.kill()
 
 
-class Store:
-    def __init__(self, player):
-        self.player = player
-
-        self.base_health_price = 50
-        self.health_price_multiplier = 1.5
-        self.current_health_price = self.base_health_price
-        self.health_upgrade_amount = 50
-
-        self.base_bullet_damage_price = 50
-        self.bullet_damage_price_multiplier = 1.5
-        self.current_bullet_damage_price = self.base_bullet_damage_price
-        self.bullet_damage_upgrade_amount = 20
-
-        self.base_speed_price = 25
-        self.speed_price_multiplier = 1.5
-        self.current_speed_price = self.base_speed_price
-        self.speed_upgrade_amount = 0.5
-
-        self.base_reload_price = 50
-        self.reload_price_multiplier = 1.5
-        self.current_reload_price = self.base_reload_price
-        self.reload_upgrade_amount = 1
-
-        self.base_multi_price = 350
-        self.multi_price_multiplier = 3
-        self.current_multi_price = self.base_multi_price
-        self.multi_upgrade_amount = 1
-
-    def open_store(self):
-        global money
-        while True:
-            screen.fill((0, 0, 0))
-            money_draw(money)
-            font = pygame.font.Font(None, 50)
-            text = font.render("Store", True, (255, 255, 255))
-            screen.blit(text, (SCREENSIZE[0] // 2 - text.get_rect().width // 2, 50))
-
-            buy_health_text = font.render(f"Buy Health ({self.current_health_price} $)", True, (255, 255, 255))
-            screen.blit(buy_health_text, (SCREENSIZE[0] // 2 - buy_health_text.get_rect().width // 2, 100))
-
-            buy_bullet_damage_text = font.render(f"Buy Bullet Damage ({self.current_bullet_damage_price} $)", True,
-                                                 (255, 255, 255))
-            screen.blit(buy_bullet_damage_text,
-                        (SCREENSIZE[0] // 2 - buy_bullet_damage_text.get_rect().width // 2, 150))
-
-            buy_speed_text = font.render(f"Buy Speed ({self.current_speed_price} $)", True,
-                                                 (255, 255, 255))
-            screen.blit(buy_speed_text,
-                        (SCREENSIZE[0] // 2 - buy_speed_text.get_rect().width // 2, 200))
-
-            buy_reload_text = font.render(f"Buy Reload ({self.current_reload_price} $)", True,
-                                         (255, 255, 255))
-            screen.blit(buy_reload_text,
-                        (SCREENSIZE[0] // 2 - buy_reload_text.get_rect().width // 2, 250))
-
-            if player.multi != 2:
-                buy_multi_text = font.render(f"Buy Multishot ({self.current_multi_price} $)", True,
-                                              (255, 255, 255))
-            else:
-                buy_multi_text = font.render(f"Multishot Max lvl", True,
-                                              (255, 255, 255))
-            screen.blit(buy_multi_text,
-                        (SCREENSIZE[0] // 2 - buy_multi_text.get_rect().width // 2, 300))
-
-            back_text = font.render("Back", True, (255, 255, 255))
-            screen.blit(back_text, (SCREENSIZE[0] // 2 - back_text.get_rect().width // 2, 450))
-
-            pygame.display.flip()
-
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    sys.exit()
-                elif event.type == pygame.MOUSEBUTTONDOWN:
-                    x, y = pygame.mouse.get_pos()
-                    if 360 <= x <= 920:
-                        if 95 <= y <= 135:
-                            if money >= self.current_health_price:
-                                money -= self.current_health_price
-                                self.player.max_hp += self.health_upgrade_amount
-                                self.player.hp = self.player.max_hp
-                                self.current_health_price = int(self.current_health_price * self.health_price_multiplier)
-                                buying_sound.play()
-                        elif 145 <= y <= 185:
-                            if money >= self.current_bullet_damage_price:
-                                money -= self.current_bullet_damage_price
-                                Bullet.damage += self.bullet_damage_upgrade_amount
-                                self.current_bullet_damage_price = int(
-                                    self.current_bullet_damage_price * self.bullet_damage_price_multiplier)
-                                buying_sound.play()
-                        elif 195 <= y <= 235:
-                            if money >= self.current_speed_price:
-                                money -= self.current_speed_price
-                                player.speed += self.speed_upgrade_amount
-                                self.current_speed_price = int(
-                                    self.current_speed_price * self.speed_price_multiplier)
-                                buying_sound.play()
-                        elif 245 <= y <= 285:
-                            if money >= self.current_reload_price:
-                                money -= self.current_reload_price
-                                self.player.cooldown -= self.reload_upgrade_amount
-                                self.current_reload_price = int(
-                                    self.current_reload_price * self.reload_price_multiplier)
-                                buying_sound.play()
-                        elif 295 <= y <= 335 and player.multi < 2:
-                            if money >= self.current_multi_price:
-                                money -= self.current_multi_price
-                                self.player.multi += self.multi_upgrade_amount
-                                self.current_multi_price = int(
-                                    self.current_multi_price * self.multi_price_multiplier)
-                                buying_sound.play()
-                        elif 445 <= y <= 500:
-                            return
-
-
 def initialize_game_state():
-    global money, difficulty, score, all_sprites, bullets, enemies, particles, player, store, Bullet, wave_seconds
+    global money, difficulty, score, all_sprites, bullets, enemies, particles, player, Bullet, wave_seconds
     money = 0
     difficulty = 0
     score = 0
@@ -814,20 +702,46 @@ def initialize_game_state():
     particles.empty()
     enemy_bullets.empty()
     player = Player(all_sprites, player_sprite)
-    store = Store(player)
     Bullet.damage = 50
+
 
 def exit_game():
     pygame.quit()
     sys.exit()
 
 def start_game():
-    global money, difficulty, score, all_sprites, bullets, enemies, particles, player, store, Bullet, wave_seconds
+    global money, difficulty, score, all_sprites, bullets, enemies, particles, player, Bullet, wave_seconds
 
     initialize_game_state()
     fade_out(True)
     pygame.time.delay(500)
     fade_out(False)
+    store_x, store_y = -225, SCREENSIZE[1] - 235
+
+    base_health_price = 50
+    health_price_multiplier = 1.5
+    current_health_price = base_health_price
+    health_upgrade_amount = 50
+
+    base_bullet_damage_price = 50
+    bullet_damage_price_multiplier = 1.5
+    current_bullet_damage_price = base_bullet_damage_price
+    bullet_damage_upgrade_amount = 20
+
+    base_speed_price = 25
+    speed_price_multiplier = 1.5
+    current_speed_price = base_speed_price
+    speed_upgrade_amount = 0.5
+
+    base_reload_price = 50
+    reload_price_multiplier = 1.5
+    current_reload_price = base_reload_price
+    reload_upgrade_amount = 1
+
+    base_multi_price = 350
+    multi_price_multiplier = 3
+    current_multi_price = base_multi_price
+    multi_upgrade_amount = 1
 
     running = True
     clock = pygame.time.Clock()
@@ -844,10 +758,15 @@ def start_game():
     pygame.time.set_timer(STILLSPAWN, 15000)
     FATSPAWN = pygame.USEREVENT + 6
     pygame.time.set_timer(FATSPAWN, 15000)
+    CLOSEPREVENT = pygame.USEREVENT + 7
+    pygame.time.set_timer(CLOSEPREVENT, 0)
 
-    store = Store(player)
     player.able = True
     game_ended = False
+    store_opened = False
+    store_can_be_closed = False
+
+    money = 0
 
     while running:
         screen.fill('black')
@@ -860,8 +779,52 @@ def start_game():
                 running = False
 
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_m:
-                    store.open_store()
+                if event.key == pygame.K_e:
+                    store_opened = True
+                    pygame.time.set_timer(CLOSEPREVENT, 50)
+                if store_opened:
+                    if event.key == pygame.K_1:
+                        if money >= current_health_price:
+                            money -= current_health_price
+                            player.max_hp += health_upgrade_amount
+                            player.hp = player.max_hp
+                            current_health_price = int(current_health_price * health_price_multiplier)
+                            buying_sound.play()
+                    elif event.key == pygame.K_2:
+                        if money >= current_bullet_damage_price:
+                            money -= current_bullet_damage_price
+                            Bullet.damage += bullet_damage_upgrade_amount
+                            current_bullet_damage_price = int(
+                                current_bullet_damage_price * bullet_damage_price_multiplier)
+                            buying_sound.play()
+                    elif event.key == pygame.K_3:
+                        if money >= current_speed_price:
+                            money -= current_speed_price
+                            player.speed += speed_upgrade_amount
+                            current_speed_price = int(
+                                current_speed_price * speed_price_multiplier)
+                            buying_sound.play()
+                    elif event.key == pygame.K_4:
+                        if money >= current_reload_price:
+                            money -= current_reload_price
+                            player.cooldown -= reload_upgrade_amount
+                            current_reload_price = int(
+                                current_reload_price * reload_price_multiplier)
+                            buying_sound.play()
+                    elif event.key == pygame.K_5 and player.multi < 2:
+                        if money >= current_multi_price:
+                            money -= current_multi_price
+                            player.multi += multi_upgrade_amount
+                            current_multi_price = int(
+                                current_multi_price * multi_price_multiplier)
+                            buying_sound.play()
+                    elif event.key == pygame.K_e and store_can_be_closed:
+                        store_opened = False
+                        store_can_be_closed = False
+                        pygame.time.set_timer(CLOSEPREVENT, 0)
+
+            elif event.type == CLOSEPREVENT:
+                store_can_be_closed = True
 
             elif event.type == DIFFEVENT:
                 difficulty += 1
@@ -873,6 +836,8 @@ def start_game():
                 pygame.display.update()
                 wave_seconds = 0
                 pygame.time.delay(1000)
+                if difficulty == 1:
+                    pygame.time.set_timer(DIFFEVENT, 31000)
 
             elif event.type == DIRECTSPAWN:
                 for i in range(3 + math.floor(difficulty * 1.5)):
@@ -929,7 +894,6 @@ def start_game():
                 player_coords = player.rect.center
                 enemy_bullet.kill()
 
-
         if not player.alive() and not game_ended:
             save_game_data(difficulty, score)
             for _ in range(30):
@@ -948,8 +912,46 @@ def start_game():
         money_draw(money)
         score_draw(score)
         wave_bar_draw()
+        if store_x != -225:
+            dark_surface = pygame.Surface((200, 175))
+            dark_surface.fill((46, 46, 46))
+            dark_surface.set_alpha(200)
+            screen.blit(dark_surface, (store_x, store_y))
+
+            font = pygame.font.Font(None, 30)
+            text = font.render("Store", True, (255, 255, 255))
+            screen.blit(text, (store_x + 15, store_y + 10))
+
+            buy_health_text = font.render(f"1 Health ({current_health_price})", True, (255, 255, 255))
+            screen.blit(buy_health_text, (store_x + 15, store_y + 35))
+
+            buy_bullet_damage_text = font.render(f"2 Damage ({current_bullet_damage_price})", True, (255, 255, 255))
+            screen.blit(buy_bullet_damage_text, (store_x + 15, store_y + 60))
+
+            buy_speed_text = font.render(f"3 Speed ({current_speed_price})", True, (255, 255, 255))
+            screen.blit(buy_speed_text, (store_x + 15, store_y + 85))
+
+            buy_reload_text = font.render(f"4 Reload ({current_reload_price})", True, (255, 255, 255))
+            screen.blit(buy_reload_text, (store_x + 15, store_y + 110))
+
+            if player.multi != 2:
+                buy_multi_text = font.render(f"5 Multishot ({current_multi_price})", True, (255, 255, 255))
+            else:
+                buy_multi_text = font.render(f"5 Multishot Max lvl", True, (255, 255, 255))
+            screen.blit(buy_multi_text, (store_x + 15, store_y + 135))
+        if store_opened:
+            if store_x < 14:
+                store_x += (15 - store_x) / 10
+            elif store_x != 15:
+                store_x = 15
+        else:
+            if store_x > -224:
+                store_x += (-225 - store_x) / 10
+            elif store_x != -225:
+                store_x = -225
         pygame.display.update()
         clock.tick(60)
         wave_seconds += 0.6
 
+trophy = load_image('score.png')
 menu('main')
