@@ -131,18 +131,18 @@ def draw_texts(buttons, history_data, mode=None):
     if mode == 'history':
         title_font = pygame.font.Font(None, 70)
         title_text = title_font.render("Game History", True, 'white')
-        title_rect = title_text.get_rect(center=(SCREENSIZE[0] // 2 + buttons[3].x - 50, 100))
+        title_rect = title_text.get_rect(center=(SCREENSIZE[0] // 2 + buttons[4].x - 50, 100))
         screen.blit(title_text, title_rect)
         y_offset = 150
         if history_data:
             for row in history_data:
                 entry_text = f"{row[1]} | Wave: {row[2]} | Score: {row[3]}"
                 text_surface = font.render(entry_text, True, 'white')
-                screen.blit(text_surface, (buttons[3].x, y_offset))
+                screen.blit(text_surface, (buttons[4].x, y_offset))
                 y_offset += 40
         else:
             no_data_text = font.render("No game history available.", True, 'white')
-            screen.blit(no_data_text, (buttons[3].x, y_offset))
+            screen.blit(no_data_text, (buttons[4].x, y_offset))
 
 def draw_gameover_texts(floor_score, text_y):
     font_big = pygame.font.Font(None, 150)
@@ -167,6 +167,16 @@ def draw_gameover_texts(floor_score, text_y):
     screen.blit(go_to_menu_text, go_to_menu_rect)
     return play_again_rect, go_to_menu_rect
 
+def draw_extra(x, y):
+    text = font.render("Shoot - RMB", True, (255, 255, 255))
+    screen.blit(text, (x, y))
+    text = font.render("Move - WASD", True, (255, 255, 255))
+    screen.blit(text, (x, y + 40))
+    text = font.render("Shop - E", True, (255, 255, 255))
+    screen.blit(text, (x, y + 80))
+    text = font.render("Buy - 12345", True, (255, 255, 255))
+    screen.blit(text, (x, y + 120))
+
 def menu(menu_part, score=0):
     initialize_database()
     font = pygame.font.Font(None, 50)
@@ -174,11 +184,14 @@ def menu(menu_part, score=0):
     score_temp = 0
     last_score = -1
     score_showed = False
+    extra_showed = False
+    extra_x = -250
     game_over_text_y = SCREENSIZE[1] * 3 // 2 - 50
 
     init_buttons = [Button("Start", SCREENSIZE[0] // 2 - 100, 300, 200, 50),
                Button("History", SCREENSIZE[0] // 2 - 100, 370, 200, 50),
-               Button("Exit", SCREENSIZE[0] // 2 - 100, 440, 200, 50),
+               Button("Extra", SCREENSIZE[0] // 2 - 100, 440, 200, 50),
+               Button("Exit", SCREENSIZE[0] // 2 - 100, 510, 200, 50),
                Button("Back", 1330, 50, 100, 50)]
     buttons = init_buttons
 
@@ -200,16 +213,33 @@ def menu(menu_part, score=0):
                         menu_part = 'history'
                         button_sound.play()
                     elif buttons[2].rect.collidepoint(x, y):
+                        extra_showed = not extra_showed
+                        button_sound.play()
+                    elif buttons[3].rect.collidepoint(x, y):
                         pygame.quit()
                         sys.exit()
 
             if buttons[0].x < SCREENSIZE[0] // 2 - 101:
-                for button in buttons[:3]:
+                for button in buttons[:4]:
                     button.x += (SCREENSIZE[0] // 2 - 100 - button.x) / 50
                     button.rect = pygame.rect.Rect(button.x, button.y, button.width, button.height)
-            if buttons[3].x < 1329:
-                buttons[3].x -= (buttons[3].x - 1329) / 50
-                buttons[3].rect = pygame.rect.Rect(buttons[3].x, buttons[3].y, buttons[3].width, buttons[3].height)
+            if buttons[4].x < 1329:
+                buttons[4].x -= (buttons[4].x - 1329) / 50
+                buttons[4].rect = pygame.rect.Rect(buttons[4].x, buttons[4].y, buttons[4].width, buttons[4].height)
+
+            if extra_x != -250:
+                draw_extra(extra_x + buttons[0].x - 520, buttons[0].y)
+            if extra_showed:
+                if extra_x < 14:
+                    extra_x += (15 - extra_x) / 10
+                elif extra_x != 15:
+                    extra_x = 15
+            else:
+                if extra_x > -249:
+                    extra_x += (-250 - extra_x) / 10
+                elif extra_x != -250:
+                    extra_x = -250
+
 
             for button in buttons:
                 button.draw(screen, font)
@@ -227,15 +257,15 @@ def menu(menu_part, score=0):
 
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     x, y = pygame.mouse.get_pos()
-                    if buttons[3].rect.collidepoint(x, y):
+                    if buttons[4].rect.collidepoint(x, y):
                         menu_part = 'main'
                         button_sound.play()
 
-            if buttons[3].x > 51:
-                buttons[3].x -= (buttons[3].x - 50) / 50
-                buttons[3].rect = pygame.rect.Rect(buttons[3].x, buttons[3].y, buttons[3].width, buttons[3].height)
+            if buttons[4].x > 51:
+                buttons[4].x -= (buttons[4].x - 50) / 50
+                buttons[4].rect = pygame.rect.Rect(buttons[4].x, buttons[4].y, buttons[4].width, buttons[4].height)
             if buttons[0].x > -739:
-                for button in buttons[:3]:
+                for button in buttons[:4]:
                     button.x -= (button.x + 739) / 50
                     button.rect = pygame.rect.Rect(button.x, button.y, button.width, button.height)
 
@@ -253,16 +283,16 @@ def menu(menu_part, score=0):
                     sys.exit()
 
             if buttons[0].y < 1019:
-                for button in buttons[:3]:
+                for button in buttons[:4]:
                     button.y += (1020 - button.y) / 100
                     button.rect = pygame.rect.Rect(button.x, button.y, button.width, button.height)
             else:
                 start_game()
                 menu_part = 'main'
-                buttons = [Button("Start", SCREENSIZE[0] // 2 - 100, 300, 200, 50),
-                           Button("History", SCREENSIZE[0] // 2 - 100, 370, 200, 50),
-                           Button("Exit", SCREENSIZE[0] // 2 - 100, 440, 200, 50),
-                           Button("Back", 1330, 50, 100, 50)]
+                buttons = init_buttons
+
+            if extra_x != -250:
+                draw_extra(extra_x + buttons[0].x - 520, buttons[0].y)
 
             for button in buttons:
                 button.draw(screen, font)
@@ -291,7 +321,8 @@ def menu(menu_part, score=0):
                             button_sound.play()
                             buttons = [Button("Start", SCREENSIZE[0] // 2 - 100, 1020, 200, 50),
                                        Button("History", SCREENSIZE[0] // 2 - 100, 1090, 200, 50),
-                                       Button("Exit", SCREENSIZE[0] // 2 - 100, 1160, 200, 50),
+                                       Button("Extra", SCREENSIZE[0] // 2 - 100, 1160, 200, 50),
+                                       Button("Exit", SCREENSIZE[0] // 2 - 100, 1230, 200, 50),
                                        Button("Back", 1330, 50, 100, 50)]
                             font = pygame.font.Font(None, 50)
                             menu_part = 'game_over_to_main'
@@ -315,11 +346,11 @@ def menu(menu_part, score=0):
         while menu_part == 'game_over_to_main':
             screen.fill('black')
             if buttons[0].y > 301:
-                for i in range(3):
+                for i in range(4):
                     buttons[i].y -= (buttons[i].y - init_buttons[i].y) / 20
                     buttons[i].rect = pygame.rect.Rect(buttons[i].x, buttons[i].y, buttons[i].width, buttons[i].height)
             else:
-                for event in pygame.event.get():
+                for _ in pygame.event.get():
                     pass
                 menu_part = 'main'
                 buttons = init_buttons
@@ -379,12 +410,6 @@ def score_update(score):
         return 0.01
     else:
         return score / 1000
-
-def menu_update(coord):
-    if coord <= 10:
-        return 1
-    else:
-        return coord / 100
 
 
 class Player(pygame.sprite.Sprite):
